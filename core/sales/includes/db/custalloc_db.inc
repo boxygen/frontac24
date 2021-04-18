@@ -124,7 +124,7 @@ function get_allocatable_from_cust_sql($customer_id=null, $settled)
 		 OR (type=".ST_JOURNAL. " AND (trans.ov_amount < 0)))";
 
 	if (!$settled)
-		$sql .= " AND (round(abs(ov_amount+ov_gst+ov_freight+ov_freight_tax-ov_discount)-abs(alloc),6) > 0)";
+		$sql .= " AND (round(abs(ov_amount+ov_gst+ov_freight+ov_freight_tax+ov_discount)-abs(alloc),6) > 0)";
 
 	if ($customer_id != null)
 		$sql .= " AND trans.debtor_no = ".db_escape($customer_id);
@@ -211,7 +211,7 @@ function get_allocatable_to_cust_transactions($customer_id = null, $trans_no=nul
 		$sql .= "
 				 AND (
 					trans.type='".ST_SALESINVOICE."'
-					AND round(IF(prep_amount, prep_amount, ov_amount+ov_gst+ov_freight+ov_freight_tax+ov_discount)-alloc,6) > 0
+					AND round(IF(prep_amount, prep_amount, ov_amount+ov_gst+ov_freight+ov_freight_tax+ov_discount)-alloc,6) != 0
 					OR
 					trans.type='". ST_CUSTCREDIT."'
 					AND round(-IF(prep_amount, prep_amount, ov_amount+ov_gst+ov_freight+ov_freight_tax+ov_discount)-alloc,6) > 0
@@ -228,7 +228,7 @@ function get_allocatable_to_cust_transactions($customer_id = null, $trans_no=nul
 	$orders = get_allocatable_sales_orders($customer_id, $trans_no, $type);
 	$sql = "($sql ORDER BY trans_no) \nUNION \n($orders)";
 
-	return db_query($sql, "Cannot retreive alloc to transactions");
+	return db_query($sql." ORDER BY due_date", "Cannot retreive alloc to transactions");
 }
 
 //-------------------------------------------------------------------------------------------------------------

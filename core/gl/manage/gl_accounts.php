@@ -82,9 +82,9 @@ if (isset($_POST['add']) || isset($_POST['update']))
 
     	if ($selected_account) 
 		{
-			if (get_post('inactive') == 1 && is_bank_account($_POST['account_code']))
+			if (get_post('inactive') == 1 && is_active_bank_account($_POST['account_code']))
 			{
-				display_error(_("The account belongs to a bank account and cannot be inactivated."));
+				display_error(_("The account belongs to an active bank account and cannot be inactivated."));
 			}
     		elseif (update_gl_account($_POST['account_code'], $_POST['account_name'], 
 				$_POST['account_type'], $_POST['account_code2'])) {
@@ -173,6 +173,18 @@ function can_delete($selected_account)
 	}
 
 	return true;
+}
+
+//--------------------------------------------------------------------------------------
+
+function is_active_bank_account($acct)
+{
+    $id = is_bank_account($_POST['account_code']);
+    if ($id == false)
+        return false;
+
+    $bank = get_bank_account($id);
+    return !$bank['inactive'];
 }
 
 //--------------------------------------------------------------------------------------

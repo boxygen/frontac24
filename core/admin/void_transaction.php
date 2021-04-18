@@ -37,17 +37,6 @@ page(_($help_context = "Void a Transaction"), false, false, "", $js);
 
 simple_page_mode(true);
 //----------------------------------------------------------------------------------------
-function returnToReferer($message)
-{
-    $referer=parse_url($_POST['referer'], PHP_URL_PATH);
-    $params = parse_url(htmlspecialchars_decode($_POST['referer']), PHP_URL_QUERY);
-    $params = preg_replace('/[&]*message.*/', '', $params);
-    if (!empty($params))
-        $params .= "&";
-    $params .= "message=$message";
-
-    meta_forward($referer, $params);
-}
 
 function exist_transaction($type, $type_no)
 {
@@ -171,7 +160,7 @@ function voiding_controls()
 {
 	global $selected_id;
 
-	$not_implemented =  array(ST_PURCHORDER, ST_SALESORDER, ST_SALESQUOTE, ST_COSTUPDATE);
+	$not_implemented =  array(ST_PURCHORDER, ST_SALESORDER, ST_SALESQUOTE, ST_COSTUPDATE, ST_CUSTOMER, ST_SUPPLIER);
 
 	start_form();
 
@@ -331,8 +320,7 @@ function handle_void_transaction()
 
 		if (!$msg) 
 		{
-            if (isset($_POST['referer']))
-                returnToReferer("Void Completed");
+            meta_forward_referer("Void Completed");
 
 			display_notification_centered(_("Selected transaction has been voided."));
 			unset($_POST['trans_no']);
@@ -371,8 +359,7 @@ if (isset($_POST['ConfirmVoiding']))
 
 if (isset($_POST['CancelVoiding']))
 {
-    if (isset($_POST['referer']))
-        returnToReferer("Void Canceled");
+    meta_forward_referer("Void Completed");
 	$selected_id = -1;
 	$Ajax->activate('_page_body');
 }

@@ -241,7 +241,7 @@
 				_("Delivery Date") => '',
 			);
 			$this->headers = array(_("Trans Type"), _("#"), _("Date"), _("DueDate"), _("Charges"),
-				_("Credits"), _("Allocated"), _("Outstanding"));
+				_("Credits"), "", _("Outstanding"));
 	}
 
 	// default values

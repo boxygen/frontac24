@@ -312,7 +312,7 @@ function set_page_security($value=null, $trans = array(), $gtrans = array())
 //
 function strip_quotes($data)
 {
-	if(get_magic_quotes_gpc()) {
+	if(version_compare(phpversion(), '5.4', '<') && get_magic_quotes_gpc()) {
 		if(is_array($data)) {
 			foreach($data as $k => $v) {
 				$data[$k] = strip_quotes($data[$k]);
@@ -561,7 +561,7 @@ if (!defined('FA_LOGOUT_PHP_FILE')){
 			{
 				// in case of GET request redirect to avoid confirmation dialog 
 				// after return from menu option
-				header("HTTP/1.1 303 See Other");
+				header("HTTP/1.1 307 Temporary Redirect");
 				header("Location: ".$_SESSION['timeout']['uri']);
 				exit();
 			}

@@ -29,7 +29,7 @@ include_once($path_to_root . "/inventory/includes/db/items_category_db.inc");
 
 print_inventory_sales();
 
-function getTransactions($category, $location, $fromcust, $from, $to, $show_service)
+function getTransactions($category, $location, $frombr, $from, $to, $show_service)
 {
 	$from = date2sql($from);
 	$to = date2sql($to);
@@ -70,8 +70,8 @@ function getTransactions($category, $location, $fromcust, $from, $to, $show_serv
 	if ($location != '')
 		$sql .= " AND move.loc_code = ".db_escape($location);
 
-	if ($fromcust != '')
-		$sql .= " AND debtor.debtor_no = ".db_escape($fromcust);
+	if ($frombr != '')
+		$sql .= " AND trans.branch_code = ".db_escape($frombr);
 
 	$sql .= " GROUP BY item.stock_id, debtor.name ORDER BY item.category_id,
 		item.stock_id, debtor.name";
@@ -90,7 +90,7 @@ function print_inventory_sales()
 	$to = $_POST['PARAM_1'];
     $category = $_POST['PARAM_2'];
     $location = $_POST['PARAM_3'];
-    $fromcust = $_POST['PARAM_4'];
+    $frombr = $_POST['PARAM_4'];
 	$show_service = $_POST['PARAM_5'];
 	$comments = $_POST['PARAM_6'];
 	$orientation = $_POST['PARAM_7'];
@@ -115,17 +115,17 @@ function print_inventory_sales()
 	else
 		$loc = get_location_name($location);
 
-	if ($fromcust == '')
+	if ($frombr == '')
 		$fromc = _('All');
 	else
-		$fromc = get_customer_name($fromcust);
+		$fromc = get_customer_name($frombr);
 	if ($show_service) $show_service_items = _('Yes');
 	else $show_service_items = _('No');
 
 	$cols = array(0, 75, 175, 250, 300, 375, 450,	515);
 
 	$headers = array(_('Category'), _('Description'), _('Customer'), _('Qty'), _('Sales'), _('Cost'), _('Contribution'));
-	if ($fromcust != '')
+	if ($frombr != '')
 		$headers[2] = '';
 
 	$aligns = array('left',	'left',	'left', 'right', 'right', 'right', 'right');
@@ -145,7 +145,7 @@ function print_inventory_sales()
     $rep->Info($params, $cols, $headers, $aligns);
     $rep->NewPage();
 
-	$res = getTransactions($category, $location, $fromcust, $from, $to, $show_service);
+	$res = getTransactions($category, $location, $frombr, $from, $to, $show_service);
 	$total = $grandtotal = 0.0;
 	$total1 = $grandtotal1 = 0.0;
 	$total2 = $grandtotal2 = 0.0;
@@ -179,7 +179,7 @@ function print_inventory_sales()
 		$rep->NewLine();
 		$rep->fontSize -= 2;
 		$rep->TextCol(0, 1, $trans['stock_id']);
-		if ($fromcust == ALL_TEXT)
+		if ($frombr == ALL_TEXT)
 		{
 			$rep->TextCol(1, 2, $trans['description'].($trans['inactive']==1 ? " ("._("Inactive").")" : ""), -1);
 			$rep->TextCol(2, 3, $trans['debtor_name']);

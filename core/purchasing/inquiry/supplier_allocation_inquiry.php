@@ -20,10 +20,10 @@ if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(900, 500);
 if (user_use_date_picker())
 	$js .= get_js_date_picker();
-$js .= get_js_history(array('supplier_id', 'TransAfterDate', 'TransToDate'));
+$js .= get_js_history(array('supplier_id', 'TransFromDate', 'TransToDate'));
 page(_($help_context = "Supplier Allocation Inquiry"), false, false, "", $js);
 
-set_posts(array('supplier_id', 'TransAfterDate', 'TransToDate'));
+set_posts(array('supplier_id', 'TransFromDate', 'TransToDate'));
 
 //------------------------------------------------------------------------------------------------
 
@@ -37,9 +37,10 @@ start_row();
 
 supplier_list_cells(_("Select a supplier: "), 'supplier_id', $_POST['supplier_id'], true);
 
-date_cells(_("From:"), 'TransAfterDate', '', null, -abs(user_transaction_days()));
+date_cells(_("From:"), 'TransFromDate', '', null, -abs(user_transaction_days()));
 date_cells(_("To:"), 'TransToDate', '', null, 1);
 
+unset ($_SESSION['filterType']);
 supp_allocations_list_cell("filterType", null);
 
 check_cells(_("show settled:"), 'showSettled', null);
@@ -119,7 +120,7 @@ function fmt_credit($row)
 }
 //------------------------------------------------------------------------------------------------
 
-$sql = get_sql_for_supplier_allocation_inquiry(get_post('TransAfterDate'),get_post('TransToDate'),
+$sql = get_sql_for_supplier_allocation_inquiry(get_post('TransFromDate'),get_post('TransToDate'),
 	get_post('filterType'), get_post('supplier_id'), check_value('showSettled'));
 
 $cols = array(
@@ -129,7 +130,7 @@ $cols = array(
 	_("Supplier") => array('ord'=>''), 
 	_("Supp Reference"),
 	_("Date") => array('name'=>'tran_date', 'type'=>'date', 'ord'=>'asc'),
-	_("Due Date") => array('fun'=>'due_date'),
+	_("Due Date") => array('type'=>'date', 'fun'=>'due_date'),
 	_("Currency") => array('align'=>'center'),
 	_("Debit") => array('align'=>'right', 'fun'=>'fmt_debit'), 
 	_("Credit") => array('align'=>'right', 'insert'=>true, 'fun'=>'fmt_credit'), 

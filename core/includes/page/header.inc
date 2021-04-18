@@ -87,12 +87,74 @@ function send_scripts()
     echo $js;
 }
 
+function send_xml($title)
+{
+    global $SysPrefs, $path_to_root;
+
+    if (@$SysPrefs->config_xml) {
+        $theme = user_theme();
+        $css_file = $path_to_root . "/themes/$theme/xonomy.css";
+		echo "<link href='$css_file' rel='stylesheet' type='text/css'> \n";
+
+        $xml_lib = array("https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js", "../../js/xonomy.js");
+        $js ='';
+        foreach($xml_lib as $jsfile)
+        {
+            $js .= '<script language="javascript" type="text/javascript" src="'.
+                $jsfile . '"></script>' . "\n";
+        }
+        echo $js;
+
+        $xml=simplexml_load_string($SysPrefs->config_xml);
+
+        foreach ($xml->page as $page) {
+            if ($page->title == $title) {
+	  	        echo '<script language="javascript" type="text/javascript">
+                function xml_start() {
+                    var name = "' . $page->field . '";
+                    var docSpec = ' . $page->schema . ';
+                    elms=document.getElementsByName(name);
+                    if (elms != null) {
+                        var elm=elms[0];
+                        var div = document.createElement("DIV");
+                        div.setAttribute("id","editor");
+                        // elm.parentNode.insertBefore(div, elm.nextSibling);
+                        elm.parentNode.insertBefore(div, elm);
+                        elm.style.visibility = "hidden";
+                        var xml=elm.value;
+                        if (xml == "")
+                            xml="<list></list>";
+                        else if (xml.substring(0,1) != "<")
+                            xml="<list><text=\'" + xml + "\'></list>";
+                        var editor=document.getElementById("editor");
+                        Xonomy.setMode("laic");
+                        Xonomy.render(xml, editor, docSpec);
+                    }
+                }
+                function xml_save(xml) {
+                    var name = "' . $page->field . '";
+                    var docSpec = ' . $page->schema . ';
+                    elms=document.getElementsByName(name);
+                    if (elms != null) {
+                        var elm=elms[0];
+                        elm.innerHTML = xml;
+                    }
+                }
+	  	        </script>
+                ';
+                break;
+            }
+        }
+    }
+}
+
+
 function page_header($title, $no_menu=false, $is_index=false, $onload="", $js="", $css='', $no_cache = false)
 {
 	// titles and screen header
 	global $path_to_root, $SysPrefs, $db_connections;
 
-	if (in_ajax())
+	if (in_ajax() || isset($_POST['REP_ID']))
 		return; // just for speed up
 
 	$theme = user_theme();
@@ -132,6 +194,7 @@ function page_header($title, $no_menu=false, $is_index=false, $onload="", $js=""
 		hook_invoke_all('pre_header', $page_header_args);
 
 	$encoding = $_SESSION['language']->encoding;
+	$lang = substr($_SESSION['language']->code, 0, 2);
 
 	if (!headers_sent()){
 		header("Content-type: text/html; charset=$encoding");
@@ -143,7 +206,7 @@ function page_header($title, $no_menu=false, $is_index=false, $onload="", $js=""
 	}
 	echo "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n";
     echo "<meta name='viewport' content='width=device-width, height=device-height, initial-scale=1.0'> \n";
-	echo "<html dir='" . $_SESSION['language']->dir . "' >\n";
+	echo "<html dir='" . $_SESSION['language']->dir . "' lang=$lang>\n";
 	echo "<head profile=\"http://www.w3.org/2005/10/profile\"><title>$title</title>";
 	if (strpos($_SERVER['HTTP_USER_AGENT'], 'Trident/7.0; rv:11.0') != -1) // IE 11 doesn't work with input file type in form.
 		echo "<meta http-equiv='X-UA-Compatible' content='IE=10'>\n";
@@ -153,6 +216,8 @@ function page_header($title, $no_menu=false, $is_index=false, $onload="", $js=""
 	send_css($css);
 
 	send_scripts();
+
+    send_xml($title);
 
 	echo "</head> \n";
 	if ($onload == "")

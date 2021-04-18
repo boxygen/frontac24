@@ -86,6 +86,8 @@ function gl_payment_controls($trans_no)
 			$_POST['ToBankAccount'] = $to_trans['bank_act'];
 			$_POST['target_amount'] = price_format($to_trans['amount']);
 			$_POST['amount'] = price_format(-$from_trans['amount']);
+            $_POST['from_reconciled'] = $from_trans['reconciled'];
+            $_POST['to_reconciled'] = $to_trans['reconciled'];
 		} else {
 			$_POST['ref'] = $Refs->get_next(ST_BANKTRANSFER, null, get_post('DatePaid'));
 			$_POST['memo_'] = '';
@@ -135,6 +137,16 @@ function gl_payment_controls($trans_no)
 	}
 
     textarea_row(_("Memo:"), 'memo_', null, 40,4);
+
+        // Query the user to retain the reconciled status
+        if (!is_null(@$_POST['from_reconciled'])
+            || !is_null(@$_POST['to_reconciled'])) {
+            check_row(_('Reconciled:'), 'reconciled', 1, false);
+            if (!is_null(@$_POST['from_reconciled']))
+                hidden('from_reconciled', $_POST['from_reconciled']);
+            if (!is_null(@$_POST['to_reconciled']))
+                hidden('to_reconciled', $_POST['to_reconciled']);
+        }
 
 	end_outer_table(1); // outer table
 
@@ -272,13 +284,17 @@ function bank_transfer_handle_submit()
 {
 	$trans_no = array_key_exists('_trans_no', $_POST) ?  $_POST['_trans_no'] : null;
 	if ($trans_no) {
-		$trans_no = update_bank_transfer($trans_no, $_POST['FromBankAccount'], $_POST['ToBankAccount'], $_POST['DatePaid'], input_num('amount'), $_POST['ref'], $_POST['memo_'], input_num('charge'), input_num('target_amount'));
+        if (isset($_POST['reconciled']) && $_POST['reconciled'] == 0) {
+            unset ($_POST['from_reconciled']);
+            unset ($_POST['to_reconciled']);
+        }
+		$trans_no = update_bank_transfer($trans_no, $_POST['FromBankAccount'], $_POST['ToBankAccount'], $_POST['DatePaid'], input_num('amount'), $_POST['ref'], $_POST['memo_'], input_num('charge'), input_num('target_amount'), @$_POST['from_reconciled'], @$_POST['to_reconciled']);
 	} else {
 		new_doc_date($_POST['DatePaid']);
 		$trans_no = add_bank_transfer($_POST['FromBankAccount'], $_POST['ToBankAccount'], $_POST['DatePaid'], input_num('amount'), $_POST['ref'], $_POST['memo_'], input_num('charge'), input_num('target_amount'));
 	}
-
-	meta_forward_self("AddedID=$trans_no");
+    if ($trans_no != 0)
+        meta_forward_self("AddedID=$trans_no");
 }
 
 //----------------------------------------------------------------------------------------

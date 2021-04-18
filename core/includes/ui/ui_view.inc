@@ -270,7 +270,7 @@ function check_ui_refresh($name=null)
 // When there is no exrate for today, 
 // gets it form ECB and stores in local database.
 //
-function exchange_rate_display($from_currency, $to_currency, $date_, $force_edit=false)
+function exchange_rate_display($from_currency=null, $to_currency=null, $date_, $force_edit=false)
 {
     global $Ajax, $SysPrefs;
 
@@ -281,6 +281,12 @@ function exchange_rate_display($from_currency, $to_currency, $date_, $force_edit
 	 	$rate = input_num('_ex_rate');
 	 	if (check_ui_refresh() || !$rate) { // readonly or ui context changed
 			$comp_currency = get_company_currency();
+
+	 		if (!isset($from_currency))
+	 			$from_currency = $comp_currency;
+	 		if (!isset($to_currency))
+	 			$to_currency = $comp_currency;
+
 			if ($from_currency == $comp_currency)
 				$currency = $to_currency;
 			else
@@ -925,11 +931,17 @@ function get_js_select_combo_item() {
 		} else {			
             var element = doc.getElementsByName(client_id);
             if (element[0] != null) {
-                    element[0].value=value;
+                element[0].value=value;
                 var sname = '_'+client_id+'_update';
                 var update = doc.getElementsByName(sname)[0];
                 if(update) {
                     window.opener.JsHttpRequest.request(update);
+                } else {
+                    var element = doc.getElementsByName(client_id+'mselect');
+                    if (element[0] != null) {
+                            element[0].setvalue(value);
+                            // element[0].value=value;
+                    }
                 }
             } else {
 
@@ -950,6 +962,7 @@ function get_js_select_combo_item() {
 function get_js_set_combo_item() {
 	$js = "function setComboItem(doc, client_id, value, text){
     	var element = doc.getElementById(client_id);
+    	var search = doc.getElementById('_'+client_id+'_edit');
   		if(typeof(element) != 'undefined' && element != null && element.tagName === 'SELECT') {
 	 		var options = element.options;
 	 		options.length = 0;
@@ -958,16 +971,34 @@ function get_js_set_combo_item() {
 			option.text = text;
 	   		element.add(option, 0);
 			element.selectedIndex = 0;
+			search.value = '';
 	        element.onchange();
-	    } else {
-			var stock_element = doc.getElementsByName('stock_id');
-	    	if( stock_element.length > 0) {
-				stock_element[0].value = value;	
-				var stock_id = doc.getElementById('_stock_id_edit'); 
-				stock_id.value=value;
-				stock_id.onblur();					
-			}
- 		}
+		} else {			
+            var element = doc.getElementsByName(client_id);
+            if (element[0] != null) {
+                element[0].value=value;
+                var sname = '_'+client_id+'_update';
+                var update = doc.getElementsByName(sname)[0];
+                if(update) {
+                    window.opener.JsHttpRequest.request(update);
+                } else {
+                    var element = doc.getElementsByName(client_id+'mselect');
+                    if (element[0] != null) {
+                            element[0].setvalue(value);
+                            // element[0].value=value;
+                    }
+                }
+            } else {
+
+                var stock_element = doc.getElementsByName('stock_id');
+                if( stock_element.length > 0) {
+                    stock_element.value = value;	
+                    var stock_id = doc.getElementById('_stock_id_edit'); 
+                    stock_id.value=value;
+                    stock_id.onblur();		
+                }
+            }
+		}			
 		window.close();
 	}";
 	return $js;
@@ -1356,6 +1387,7 @@ function CC() {
       }
       table += \"</tr>\";
     }
+    table += \"<tr class='header'><th colspan='8' style='padding: 3px;text-align:center;'><a href=\\\"javascript:setCCDate(\"+getCurrentYear()+\",\"+getCurrentMonth()+\",\"+getCurrentDay()+\")\\\">Today</a></td></tr>\";
     if (toDate) {
         table += \"<tr class='header'><th colspan='8' style='padding: 3px;text-align:center;'><a href=\\\"javascript:setCCDate(\"+thisYear+\",\"+12+\",\"+31+\")\\\">\"+\"$yearend</a></td></tr>\";
         table += \"<tr class='header'><th colspan='8' style='padding: 3px;text-align:center;'><a href=\\\"javascript:setCCDate(\"+lastYear+\",\"+12+\",\"+31+\")\\\">\"+\"$lastyearend</a></td></tr>\";
@@ -1501,6 +1533,14 @@ function changeCCYear(change) {
 function changeCCMonth(change) {
   cC.changeMonth(change);
 }
+window.addEventListener('click', function(e) {
+  if (document.getElementById('CC').contains(e.target)){} else {
+    if (cC.visible()) {
+      cC.hide();
+    }
+  }
+});
+
 document.write(\"<iframe id='CCIframe' src='javascript:false;' frameBorder='0' scrolling='no'></iframe>\");
 document.write(\"<div id='CC'></div>\");";
 
@@ -1535,7 +1575,7 @@ if (!function_exists('_vd'))
 
 function _vl($mixed, $title = '', $exit = false)
 {
-	error_log((!empty($title) ? ($title .':') : '') . var_export($mixed, true));
+	error_log((!empty($title) ? ($title .':') : '') . print_r($mixed, true));
 	if ($exit)
 		exit;
 }
@@ -1649,7 +1689,16 @@ function get_js_history($vars)
 
 function set_posts($vars)
 {
-    foreach ( $vars as $var )
+    foreach ( $vars as $var ) {
         if (isset($_GET[$var]))
             $_POST[$var] = $_GET[$var];
+        else if (isset($_POST[$var]))
+            $_SESSION[$var] = $_POST[$var];
+        else if (isset($_SESSION[$var]))
+            $_POST[$var] = $_SESSION[$var];
+/*
+        if (isset($_SESSION[$var]))
+            display_notification($var . ":" . $_SESSION[$var]);
+*/
+    }
 }

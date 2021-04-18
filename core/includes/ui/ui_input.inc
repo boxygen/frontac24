@@ -348,7 +348,13 @@ function select_button_cell($name, $value, $title=false)
 
 function check_value($name)
 {
-    return (empty($_POST[$name]) ? 0 : 1);
+	if (is_array($name)) {
+		$ret = array();
+		foreach($name as $key)
+			$ret[$key] = check_value($key);
+		return $ret;
+	} else
+		return (empty($_POST[$name]) ? 0 : 1);
 }
 
 function checkbox($label, $name, $value=null, $submit_on_change=false, $title=false)
@@ -364,12 +370,22 @@ function checkbox($label, $name, $value=null, $submit_on_change=false, $title=fa
 			$submit_on_change = 
 				"JsHttpRequest.request(\"_{$name}_update\", this.form);";
 	}
-	if ($value === null)
-		$value = get_post($name,0);
+
+    $checked = false;
+    if (substr($name, -2) == "[]") {
+        if (isset($_POST[substr($name,0, -2)]))
+            $checked = in_array($value, $_POST[substr($name,0, -2)]);
+    } else {
+        if ($value === null)
+            $checked = get_post($name,0);
+        else if ($value == 1)
+            $checked = true;
+        $value = 1;
+    }
 
 	$str .= "<input"
-	    .($value == 1 ? ' checked':'')
-	    ." type='checkbox' name='$name' value='1'"
+	    .($checked ? ' checked':'')
+	    ." type='checkbox' name='$name' value='" . $value ."'"
 	    .($submit_on_change ? " onclick='$submit_on_change'" : '')
 	    .($title ? " title='$title'" : '')
 	    ." >\n";
@@ -814,7 +830,7 @@ function amount_cells_ex($label, $name, $size, $max=null, $init=null, $params=nu
 		echo "<td>";
 	else
 		echo "<td align='right'>";
-	echo "<input class='amount' style=background-color:$background_color type=\"text\" name=\"$name\" size=\"$size\" maxlength=\"$max\" dec=\"$dec\" value=\"" . $_POST[$name] . "\"";
+	echo "<input onClick='this.select();' class='amount' style=background-color:$background_color type=\"text\" name=\"$name\" size=\"$size\" maxlength=\"$max\" dec=\"$dec\" value=\"" . $_POST[$name] . "\"";
 
      if ($submit_on_blur === true)
          echo " onblur='JsHttpRequest.request(\"_{$name}_update\", this.form);'";
@@ -909,7 +925,7 @@ function small_qty_cells($label, $name, $init=null, $params=null, $post_label=nu
 
 //-----------------------------------------------------------------------------------
 
-function textarea_cells($label, $name, $value, $cols, $rows, $title = null, $params="")
+function textarea_cells($label, $name, $value, $cols, $rows, $max=255, $title = null, $params="")
 {
   	global $Ajax;
 
@@ -920,14 +936,15 @@ function textarea_cells($label, $name, $value, $cols, $rows, $title = null, $par
 		$value = (!isset($_POST[$name]) ? "" : $_POST[$name]);
 	echo "<td><textarea name='$name' cols='$cols' rows='$rows'"
 	.($title ? " title='$title'" : '')
+	.($max ? " maxlength=$max" : '')
 	.">$value</textarea></td>\n";
 	$Ajax->addUpdate($name, $name, $value);
 }
 
-function textarea_row($label, $name, $value, $cols, $rows, $title=null, $params="")
+function textarea_row($label, $name, $value, $cols, $rows, $max=255, $title=null, $params="")
 {
 	echo "<tr><td class='label'>$label</td>";
-	textarea_cells(null, $name, $value, $cols, $rows, $title, $params);
+	textarea_cells(null, $name, $value, $cols, $rows, $max, $title, $params);
 	echo "</tr>\n";
 }
 

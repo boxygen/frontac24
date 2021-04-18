@@ -46,6 +46,8 @@ define('ST_SALESORDER', 30);
 define('ST_SALESQUOTE', 32);
 define('ST_COSTUPDATE', 35);
 define('ST_DIMENSION', 40);
+define('ST_CUSTOMER', 41);
+define('ST_SUPPLIER', 42);
 
 // Don't include these defines in the $systypes_array.
 // They are used for documents only.
@@ -151,14 +153,14 @@ function payment_person_name_link($type, $person_id, $full=true, $from_date="", 
             $link = pager_link(payment_person_name($type, $person_id, $full), 
 			    "/sales/manage/customers.php?customer_id=$person_id");
             $img_title = "Customer Search";
-            $date_field="TransAfterDate";
+            $date_field="TransFromDate";
             break;
 		case PT_SUPPLIER :
 			$search_link = "/purchasing/inquiry/supplier_inquiry.php?supplier_id=$person_id";
             $link = pager_link(payment_person_name($type, $person_id, $full), 
 			    "/purchasing/manage/suppliers.php?supplier_id=$person_id");
             $img_title = "Supplier Search";
-            $date_field="TransAfterDate";
+            $date_field="TransFromDate";
             break;
 		case PT_QUICKENTRY :
 			$search_link = "/gl/inquiry/gl_account_inquiry.php?person_type=$type&person_id=$person_id";
@@ -321,5 +323,6 @@ defined('ICON_ESCAPE') || define('ICON_ESCAPE', 'escape.png');
 defined('ICON_ALLOC') || define('ICON_ALLOC', 'alloc.png');
 defined('ICON_CLOSED') || define('ICON_CLOSED', 'closed.png');
 defined('ICON_REISSUE') || define('ICON_REISSUE', 'menu_system.png');
+defined('ICON_ATTACH')	|| define('ICON_ATTACH', 'add.png');
 
 

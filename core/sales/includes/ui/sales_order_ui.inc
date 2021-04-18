@@ -125,7 +125,7 @@ function get_customer_details_to_order(&$order, $customer_id, $branch_id)
 		$order->due_date = add_days($order->document_date, $SysPrefs->default_quote_valid_days());
 
 	if($order->payment_terms['cash_sale']) {
-		$order->set_location($order->pos["pos_location"], $order->pos["location_name"]);
+		$order->set_location(@$order->pos["pos_location"], @$order->pos["location_name"]);
 	} else
 		$order->set_location($myrow["default_location"], $myrow["location_name"]);
 
@@ -170,7 +170,7 @@ function display_order_summary($title, &$order, $editable_items=false)
 		$qoh_msg = '';
 		if (!$editable_items || $id != $line_no)
 		{
-			if (in_array($stock_item->stock_id, $low_stock))
+			if (array_key_exists($stock_item->stock_id, $low_stock))
 				start_row("class='stockmankobg'");	// notice low stock status
 			else 
 				alt_table_row_color($k);
@@ -228,6 +228,9 @@ function display_order_summary($title, &$order, $editable_items=false)
 	start_row();
 	label_cells(_("Amount Total"), $display_total, "colspan=$colspan align=right","align=right");
 	submit_cells('update', _("Update"), "colspan=2 align='center'", _("Refresh"), true);
+// hack: FA seems to insert and remove carriage returns and this breaks serialize/unserialize
+    $order->delivery_address = str_replace(chr(13), '', $order->delivery_address);
+    $order->Comments = str_replace(chr(13), '', $order->Comments);
     hidden('Items', htmlentities(serialize($order)));
 	end_row();
 
@@ -236,6 +239,10 @@ function display_order_summary($title, &$order, $editable_items=false)
 		display_note(_("Marked items have insufficient quantities in stock as on day of delivery."), 0, 1, "class='stockmankofg'");
 
     div_end();
+
+    if(list_updated('stock_id')) //added by faisal phuong
+        set_focus('stock_id');
+
 }
 
 // ------------------------------------------------------------------------------
@@ -265,11 +272,19 @@ function display_order_header(&$order, $editable, $date_text)
 	else
 	{
 		customer_list_row(_("Customer:"), 'customer_id', null, _("New Customer"), true, false, true);
+        if (count($order->line_items) != 0)
+            submit_js_confirm('customer_id', _("Do you want to reprice the order based on the new customer?"));
+
+        If (isset($_POST['InvoiceNo']))
+            hidden('InvoiceNo', $_POST['InvoiceNo']); //Added by Faisal for Invoice Edit
+
+        label_row("", menu_link('sales/manage/customers.php', 'Create New Customer'));
 
         if (get_post('customer_id') == 0) {
-            label_row("", menu_link('sales/manage/customers.php', 'Create New Customer'));
+// hack: FA seems to insert and remove carriage returns and this breaks serialize/unserialize
+             $order->delivery_address = str_replace(chr(13), '', $order->delivery_address);
+             $order->Comments = str_replace(chr(13), '', $order->Comments);
             hidden('Items', htmlentities(serialize($order)));
-
         } else {
 
 		if ($order->customer_id != get_post('customer_id', -1))
@@ -359,7 +374,7 @@ function display_order_header(&$order, $editable, $date_text)
 		else
 		{
 			$row = get_customer_to_order($_POST['customer_id']);
-			if ($row['dissallow_invoices'] == 1)
+			if ($row && $row['dissallow_invoices'] == 1)
 				$customer_error = _("The selected customer account is currently on hold. Please contact the credit control personnel to discuss.");
 		}
         }
@@ -384,10 +399,10 @@ function display_order_header(&$order, $editable, $date_text)
 
 	table_section(3);
 	start_row();
-	if (($order->pos['cash_sale'] || $order->pos['credit_sale']) 
+	if ((@$order->pos['cash_sale'] || @$order->pos['credit_sale']) 
 		&& !$order->is_started()) {
 		 // editable payment type 
-		if (get_post('payment') !== $order->payment) {
+        if (isset($_POST['payment']) && $_POST['payment'] !== $order->payment) {
 			$order->payment = get_post('payment');
 			$order->payment_terms = get_payment_terms($order->payment);
 			$order->due_date = get_invoice_duedate($order->payment, $order->document_date);
@@ -398,6 +413,7 @@ function display_order_header(&$order, $editable, $date_text)
 			$Ajax->activate('items_table');
 			$Ajax->activate('delivery');
 		}
+
 		$paymcat = !$order->pos['cash_sale'] ? PM_CREDIT : 
 			(!$order->pos['credit_sale'] ? PM_CASH : PM_ANY);
 		// all terms are available for SO
@@ -499,7 +515,7 @@ function sales_order_item_controls(&$order, &$rowcounter, $line_no=-1)
 		hidden('stock_id', $_POST['stock_id']);
 		label_cell($_POST['stock_id']);
 		if ($order->line_items[$id]->descr_editable)
-			text_cells(null,'item_description', null, 45, 150);
+			text_cells(null,'item_description', null, 45, 50);
 		else {
 			hidden('item_description', $_POST['item_description']);
 			label_cell($_POST['item_description']);
@@ -509,20 +525,26 @@ function sales_order_item_controls(&$order, &$rowcounter, $line_no=-1)
 	else	// prepare new line
 	{
 		if ($order->fixed_asset)
-			stock_disposable_fa_list_cells(null,'stock_id', null, _('[Select item]'), true, $order->line_items);
-		else
-		if (list_updated('stock_id')) {
-            sales_items_list_cells(null,'stock_id', null, false, true, true);
-		    $Ajax->activate('price');
-		    $Ajax->activate('units');
-		    $Ajax->activate('qty');
-		    $Ajax->activate('line_total');
-		} else
-			 sales_items_list_cells(null,'stock_id', last_sales_order_detail($order, 'stk_code'), false, true, true);
+            stock_disposable_fa_list_cells(null,'stock_id', null, _('[Select item]'), true, $order->line_items);
+        else {
+            if (!isset($_POST['stock_id'])) {   // Check if stock_id dosesn't exist
+				$_POST['stock_id'] = last_sales_order_detail($order, 'stk_code');  //get the llast sales stock id.
+			}
+            sales_items_list_cells(null,'stock_id', $_POST['stock_id'], false, true, true, $order->sales_type);
+        }
+        if (list_updated('stock_id')) {            
+            $Ajax->activate('price');
+            $Ajax->activate('units');
+            $Ajax->activate('qty');
+            $Ajax->activate('line_total');
+        }		
 
 		$item_info = get_item_edit_info($_POST['stock_id']);
-		$units = $item_info["units"];
-		$dec = $item_info['decimals'];
+		$units = ''; $dec = 2;
+		if ($item_info) {
+				$units = $item_info["units"];
+				$dec = $item_info['decimals'];
+		}
 		$_POST['qty'] = number_format2(1, $dec);
 		$price = get_kit_price($_POST['stock_id'],
 			$order->customer_currency, $order->sales_type,
@@ -587,7 +609,7 @@ function display_delivery_details(&$order)
 		locations_list_row(_("Deliver from Location:"), 'Location', null, false, true);
  		if (list_updated('Location'))
  			$Ajax->activate('items_table');
-		label_row(_("Cash account:"), $order->pos['bank_account_name']);
+		label_row(_("Cash account:"), @$order->pos['bank_account_name']);
 		textarea_row(_("Comments:"), "Comments", $order->Comments, 31, 5);
 		end_table();
 		hidden('delivery_date', $order->due_date);
@@ -631,11 +653,11 @@ function display_delivery_details(&$order)
 
 		date_row($delname, 'delivery_date',
 			$order->trans_type==ST_SALESORDER ?  _('Enter requested day of delivery') 
-				: $order->trans_type==ST_SALESQUOTE ? _('Enter Valid until Date') : '');
+				: ($order->trans_type==ST_SALESQUOTE ? _('Enter Valid until Date') : ''));
 		text_row(_("Deliver To:"), 'deliver_to', $order->deliver_to, 50, 60,
 			_('Additional identifier for delivery e.g. name of receiving person'));
 
-		textarea_row(_("Address:"), 'delivery_address', $order->delivery_address, 35, 5,
+		textarea_row(_("Address:"), 'delivery_address', $order->delivery_address, 35, 5, 255,
 			_('Delivery address. Default is address of customer branch'));
 
 		table_section(2);

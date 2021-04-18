@@ -70,6 +70,14 @@ function end_page($no_menu=false, $is_index=false, $final_screen=false, $type_no
 	div_end();	// end of _page_body section
 
 	include_once($path_to_root . "/includes/page/footer.inc");
+
+    $updateXML = 'if (typeof xml_start === "function") xml_start();';
+    if (in_ajax()) {
+        global $Ajax;
+        $Ajax->addScript(true, $updateXML);
+    } else
+        add_js_source($updateXML);
+
 	page_footer($no_menu, $is_index);
 
     $updateHistory = 'if (typeof changeVar === "function") changeVar();';
@@ -79,8 +87,6 @@ function end_page($no_menu=false, $is_index=false, $final_screen=false, $type_no
         $Ajax->addScript(true, $updateHistory);
     } else
         add_js_source($updateHistory);
-
-
 }
 
 function css_files_ensure_init() {
@@ -194,6 +200,9 @@ function js_compress($sJS)
 	
 		//loop through line's characters and take out any literal strings, replace them with ___i___ where i is the index of this string
 		$len = strlen($line);
+		if (version_compare(PHP_VERSION, '7.0.0') >= 0) // uninitialized string offser error fix. @Braath Waate
+			$line .= chr(32);
+		
 		for($j=0;$j<$len;$j++)
 		{
 			$c = $line[$j];		// this is _really_ faster than subst

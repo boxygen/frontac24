@@ -54,7 +54,7 @@ start_table(TABLESTYLE_NOBORDER);
 
 start_row();
 
-text_cells(_("Supplier"), "supplier");
+text_cells_ex(_("Supplier"), "supplier", null, null, null, null, null, null, true);
 submit_cells("search", _("Search"), "", _("Search suppliers"), "default");
 
 end_row();

@@ -20,6 +20,7 @@
 $path_to_root = "..";
 $page_security = 'SA_SALESORDER';
 
+include($path_to_root . "/includes/ui/allocation_cart.inc");
 include_once($path_to_root . "/sales/includes/cart_class.inc");
 include_once($path_to_root . "/includes/session.inc");
 include_once($path_to_root . "/sales/includes/sales_ui.inc");
@@ -27,6 +28,9 @@ include_once($path_to_root . "/sales/includes/ui/sales_order_ui.inc");
 include_once($path_to_root . "/sales/includes/sales_db.inc");
 include_once($path_to_root . "/sales/includes/db/sales_types_db.inc");
 include_once($path_to_root . "/reporting/includes/reporting.inc");
+
+
+
 
 if (isset($_POST['Items']))
     $_POST['Items'] = unserialize(html_entity_decode($_POST['Items']));
@@ -61,6 +65,8 @@ if ($SysPrefs->use_popup_windows) {
 if (user_use_date_picker()) {
 	$js .= get_js_date_picker();
 }
+
+set_posts(array('OrderDate', 'InvoiceNo'));
 
 if (isset($_GET['NewDelivery']) && is_numeric($_GET['NewDelivery'])) {
 
@@ -101,8 +107,6 @@ if (isset($_GET['NewDelivery']) && is_numeric($_GET['NewDelivery'])) {
 	$_SESSION['page_title'] = _($help_context = "Sales Order Entry");
 	create_cart(ST_SALESQUOTE, $_GET['NewQuoteToSalesOrder']);
 }
-
-set_posts(array('DirectInvoice', 'OrderDate'));
 
 page($_SESSION['page_title'], false, false, "", $js);
 
@@ -389,7 +393,19 @@ function can_process() {
 		set_focus('AddItem');
 		return false;
 	}
-	if (!$SysPrefs->allow_negative_stock() && ($low_stock = $_POST['Items']->check_qoh()))
+
+    // TBD: When editing an invoice, the stock check
+    // needs consider that the existing invoice quantities
+    // would be returned to stock.  This could be done by voiding
+    // the invoice before the stock check, but then if the stock check fails
+    // (or anything else), the old invoice would be deleted and the new one
+    // might not be created.
+
+    // For now, skip the stock check on editing old invoices.
+
+	if (!$SysPrefs->allow_negative_stock()
+        && get_post('InvoiceNo') == 0
+        && ($low_stock = $_POST['Items']->check_qoh()))
 	{
 		display_error(_("This document cannot be processed because there is insufficient quantity for items marked."));
 		return false;
@@ -397,7 +413,7 @@ function can_process() {
 	if ($_POST['Items']->payment_terms['cash_sale'] == 0) {
 		if (!$_POST['Items']->is_started() && ($_POST['Items']->payment_terms['days_before_due'] == -1) && ((input_num('prep_amount')<=0) ||
 			input_num('prep_amount')>$_POST['Items']->get_trans_total())) {
-			display_error(_("Pre-payment required have to be positive and less than total amount."));
+			display_error(_("'Pre-Payment Required' must be positive and less than or equal to total amount."));
 			set_focus('prep_amount');
 			return false;
 		}
@@ -459,6 +475,10 @@ function can_process() {
 		display_error("Invoice total amount cannot be less than zero.");
 		return false;
 	}
+
+	if ($_POST['Items']->payment_terms['cash_sale'] && 
+		($_POST['Items']->trans_type == ST_CUSTDELIVERY || $_POST['Items']->trans_type == ST_SALESINVOICE)) 
+		$_POST['Items']->due_date = $_POST['Items']->document_date;
 	return true;
 }
 
@@ -473,6 +493,14 @@ if (isset($_POST['ProcessOrder']) && can_process()) {
 
 	$modified = ($_POST['Items']->trans_no != 0);
 	$so_type = $_POST['Items']->so_type;
+
+    // Need to void old invoice before stock check
+    // This means that it is possible to lose it without creating a new one if there is an error
+
+    if (get_post('InvoiceNo')>0) { //Added by Faisal to enable invoice Edit
+        $oldalloc = db_fetch(get_allocatable_from_cust_transactions(null, get_post('InvoiceNo'), ST_SALESINVOICE));
+        void_transaction (ST_SALESINVOICE, get_post('InvoiceNo'), Today(), 'Document Reissued');
+    }
 
 	$ret = $_POST['Items']->write(1);
 	if ($ret == -1)
@@ -497,10 +525,38 @@ if (isset($_POST['ProcessOrder']) && can_process()) {
 		new_doc_date($_POST['Items']->document_date);
 		processing_end();
 
-        if (get_post('DirectInvoice') == 1) {
-            $params="OrderNumber=".$trans_no."&DirectInvoice=1";
-            meta_forward($path_to_root . "/sales/customer_delivery.php", $params);
-        }
+        if (get_post('InvoiceNo')>0 && $oldalloc !== false) {
+            // payment is unallocated because of void
+            $_SESSION['alloc'] = new allocation($oldalloc['type'], $oldalloc['trans_no'], get_post('customer_id'), PT_CUSTOMER);
+
+            // Find the new invoice and allocate the payment to it
+            // This code handles a single alloc where the payment is equal to the invoice amount
+            // Otherwise, the allocations were cleared by the void and must be readded manually
+
+// display_notification(print_r($_SESSION['alloc'], true));
+
+            $realloc = false;
+            foreach ($_SESSION['alloc']->allocs as $alloc) {
+                $alloc->current_allocated = 0;  // clear suggested allocs
+
+                if ($alloc->type == $trans_type
+                    && $alloc->type_no == $trans_no
+                    && $_SESSION['alloc']->amount == round($alloc->amount,2)) {
+                    $alloc->current_allocated = $_SESSION['alloc']->amount;
+                    $realloc = true;
+                }
+            }
+
+// display_notification(print_r($_SESSION['alloc'], true));
+            if ($realloc) {
+                if (check_allocations()) {
+                    $_SESSION['alloc']->write();
+                } else {
+                    display_error("Cannot write allocation");
+                    die();
+                }
+            }
+        } // had an alloc
 
         if ($modified) {
             if ($trans_type == ST_SALESQUOTE)
@@ -512,7 +568,8 @@ if (isset($_POST['ProcessOrder']) && can_process()) {
         } elseif ($trans_type == ST_SALESQUOTE) {
             $params="AddedQU=$trans_no";
         } elseif ($trans_type == ST_SALESINVOICE) {
-            $params="AddedDI=$trans_no&Type=$so_type";
+            // $params="AddedDI=$trans_no&Type=$so_type";
+            meta_forward($path_to_root.'/sales/inquiry/customer_inquiry.php', 'customer_id='.get_post('customer_id')."&TransFromDate=".$_POST['OrderDate']."&TransToDate=".$_POST['OrderDate']."&message=".sprintf(_("Direct Invoice %d has been entered."), $trans_no));
         } else {
             $params="AddedDN=$trans_no&Type=$so_type";
         }
@@ -617,7 +674,7 @@ function  handle_cancel_order()
 {
 	global $path_to_root, $Ajax;
 
-
+	processing_end();
 	if ($_POST['Items']->trans_type == ST_CUSTDELIVERY) {
 		display_notification(_("Direct delivery entry has been cancelled as requested."), 1);
 		submenu_option(_("Enter a New Sales Delivery"),	"/sales/sales_order_entry.php?NewDelivery=1&OrderDate=".$_POST['OrderDate']);
@@ -651,12 +708,10 @@ function  handle_cancel_order()
             }
             meta_forward($referer, $params);
 		} else {
-			processing_end();
             // Note: new sales orders never have referer
             meta_forward($path_to_root.'/index.php','application=orders');
         }
 	}
-	processing_end();
 	display_footer_exit();
 }
 
@@ -683,21 +738,48 @@ function create_cart($type, $trans_no)
 		$doc = new Cart(ST_SALESORDER, array($trans_no));
 		$doc->trans_type = $type;
 		$doc->trans_no = 0;
-		$doc->document_date = new_doc_date();
+        if (!isset($_POST['InvoiceNo'])) //Block added by faisal for Invoice Edit
+                $doc->document_date = new_doc_date();
+
 		if ($type == ST_SALESINVOICE) {
 			$doc->due_date = get_invoice_duedate($doc->payment, $doc->document_date);
 			$doc->pos = get_sales_point(user_pos());
 		} else
 			$doc->due_date = $doc->document_date;
-		$doc->reference = $Refs->get_next($doc->trans_type, null, array('date' => Today()));
+        if (isset($_POST['InvoiceNo'])) { //Block added by faisal for Invoice Edit
+            $doc->reference = get_inv_reference ($_POST['InvoiceNo']);//$Refs->get_next($doc->trans_type, null, array('date' => Today()));
+            // sales order does not have dimensions so read them out of the invoice
+            $myrow = get_customer_trans($_POST['InvoiceNo'],$type);
+            $doc->dimension_id = $myrow['dimension_id'];
+            $doc->dimension2_id = $myrow['dimension2_id'];
+        } else
+                $doc->reference = $Refs->get_next($doc->trans_type, null, array('date' => Today()));
 		//$doc->Comments='';
 		foreach($doc->line_items as $line_no => $line) {
 			$doc->line_items[$line_no]->qty_done = 0;
 		}
 		$_POST['Items'] = $doc;
-	} else
-		$_POST['Items'] = new Cart($type, array($trans_no));
+	} else {
+		$_POST['Items'] = new Cart($type, array($trans_no), false, @$_POST['OrderDate']);
+}
 	copy_from_cart();
+}
+
+//Function added by faisal for Invoice Edit feature
+function get_inv_reference($invoice_no)
+{
+
+    $sql = "SELECT Reference
+    FROM
+    ".TB_PREF."debtor_trans invoice
+    WHERE
+    invoice.trans_no=".db_escape($invoice_no)."
+    AND
+    invoice.type='".ST_SALESINVOICE."'";
+
+    $res = db_query ($sql, 'cannot find');
+    $ref = db_fetch($res);
+    return $ref[0];
 }
 
 //--------------------------------------------------------------------------------
@@ -757,7 +839,6 @@ if ($_POST['Items']->trans_type == ST_SALESINVOICE) {
 start_form();
 
 hidden('cart_id');
-hidden('DirectInvoice');
 
 $customer_error = display_order_header($_POST['Items'], !$_POST['Items']->is_started(), $idate);
 

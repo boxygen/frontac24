@@ -17,14 +17,13 @@ function update_average_material_cost($supplier, $stock_id, $price, $qty, $date,
 	// save a couple of db calls like get_supplier()
 	
 	$supp = get_supplier($supplier);
-	if ($supplier != null)
+    if ($supplier != null) {
 		$currency = $supp['curr_code'];
-	else
+        if ($supp['tax_included'])
+            $price = get_tax_free_price_for_item($stock_id, $price, $supp['tax_group_id'],
+                $supp['tax_included']);
+    } else
 		$currency = null;
-
-	if ($supp['tax_included'])
-		$price = get_tax_free_price_for_item($stock_id, $price, $supp['tax_group_id'],
-			$supp['tax_included']);
 
 	if ($currency != null)
 	{
@@ -127,10 +126,6 @@ function add_grn(&$po)
 			   	/*Need to get the standard cost as it is now so we can process GL jorunals later*/
 			   	$order_line->standard_cost = get_unit_cost($order_line->stock_id);
 			}
-			// Update the purchase data table
-			add_or_update_purchase_data($po->supplier_id, $order_line->stock_id, $order_line->price, 
-				$order_line->item_description); 
-
 			/*Need to insert a grn item */ // also need to check for over-receive.(within allowance)
 			if ($order_line->receive_qty + $order_line->qty_received > $order_line->quantity)
 				$order_line->quantity = $order_line->receive_qty + $order_line->qty_received;
@@ -147,8 +142,9 @@ function add_grn(&$po)
 	} /*end of order_line loop */
 
 	if ($clearing_act && $total != 0.0) {
+		$accs = get_supplier_accounts($po->supplier_id);
 		$total += add_gl_trans_supplier(ST_SUPPRECEIVE, $grn, $date_, $clearing_act,
-			0, 0, -$total, null);
+			$accs['dimension_id'], $accs['dimension2_id'], -$total, null);
 	}
 	$Refs->save(ST_SUPPRECEIVE, $grn, $po->reference);
 
@@ -254,7 +250,7 @@ function set_grn_item_credited(&$entered_grn, $supplier, $transno, $date)
 function get_grn_items($grn_batch_id=0, $supplier_id="", $outstanding_only=false,
 	$is_invoiced_only=false, $invoice_no=0, $begin="", $end="")
 {
-    $sql = "SELECT grn.*, grn_item.*,
+    $sql = "SELECT grn.*, grn_item.*, po_item.delivery_date as req_del_date,
 		grn_item.quantity_inv".($invoice_no ? "-invoice_item.quantity" : '')."  quantity_inv,
     	po_item.unit_price,
     	po_item.act_price,
@@ -345,7 +341,7 @@ function read_grn_items_to_order($grn_batch, &$order)
 
 			$order->add_to_order($order->lines_on_order, $myrow["item_code"],
 				$myrow["qty_recd"],$myrow["description"], $myrow["unit_price"],$units,
-				sql2date($myrow["delivery_date"]), $myrow["quantity_inv"],
+				sql2date($myrow["req_del_date"]), $myrow["quantity_inv"],
 				$myrow["qty_recd"]);
 
 			$order->line_items[$order->lines_on_order-1]->po_detail_rec = $myrow["po_detail_item"];

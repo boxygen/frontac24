@@ -491,7 +491,6 @@ table.tablestyle_inner td {
 
 input.amount {
 	padding-right: 0px;
-	border-right: none;
 }
 
 .editbutton {
@@ -718,8 +717,8 @@ div.warn_msg {
 	margin: 10px;
 	padding: 3px;
 	border: 1px solid #ff9900;
-	background-color: #ffff00;
-	color: #ff5500;
+	background-color: #f1cd33;
+	color: #000000;
 	text-align: center;
 }
 

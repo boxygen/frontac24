@@ -216,13 +216,16 @@ if (isset($_POST['ZeroInv'])) {
         handle_new_item();
 }
 
-if (isset($_POST['AddItem']) && check_item_data())
+if (isset($_POST['AddItem']) && check_item_data()) {
 	handle_new_item();
-
-if (isset($_POST['UpdateItem']) && check_item_data())
+	unset($_POST['selected_id']);
+}
+if (isset($_POST['UpdateItem']) && check_item_data()) {
 	handle_update_item();
-
+	unset($_POST['selected_id']);
+}
 if (isset($_POST['CancelItemChanges'])) {
+	unset($_POST['selected_id']);
 	line_start_focus();
 }
 //-----------------------------------------------------------------------------------------------

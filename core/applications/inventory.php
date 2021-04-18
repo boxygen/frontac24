@@ -22,6 +22,8 @@ class inventory_app extends application
 			"inventory/adjustments.php?NewAdjustment=1", 'SA_INVENTORYADJUSTMENT', MENU_TRANSACTION);
 
 		$this->add_module(_("Inquiries and Reports"));
+		$this->add_lapp_function(1, _("Inventory Adjustments &Inquiry"),
+			"admin/view_print_transaction.php?filterType=".ST_INVADJUST, 'SA_ITEMSTRANSVIEW', MENU_INQUIRY);
 		$this->add_lapp_function(1, _("Inventory Item &Movements"),
 			"inventory/inquiry/stock_movements.php?", 'SA_ITEMSTRANSVIEW', MENU_INQUIRY);
 		$this->add_lapp_function(1, _("Inventory Item &Status"),

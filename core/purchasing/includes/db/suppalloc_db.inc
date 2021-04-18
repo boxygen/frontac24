@@ -102,6 +102,7 @@ function clear_supp_alloctions($type, $type_no, $person_id=null, $date="")
 
 function get_allocatable_from_supp_sql($supplier_id=null, $settled)
 {
+    global $SysPrefs;
 	$sql = "SELECT
 		trans.type,
 		trans.trans_no,
@@ -119,7 +120,12 @@ function get_allocatable_from_supp_sql($supplier_id=null, $settled)
 	 	.TB_PREF."supp_trans as trans, "
 		.TB_PREF."suppliers as supplier"
 	." WHERE trans.supplier_id=supplier.supplier_id
-		AND type IN(".ST_SUPPAYMENT.",".ST_SUPPCREDIT.",".ST_BANKPAYMENT.",".ST_JOURNAL.") AND (trans.ov_amount < 0)";
+		AND (trans.ov_amount < 0)";
+
+    if ($SysPrefs->simplified_supplier_aging)
+		$sql .="  AND type IN(".ST_SUPPAYMENT.",".ST_SUPPCREDIT.")";
+    else
+        $sql .= " AND type IN(".ST_SUPPAYMENT.",".ST_SUPPCREDIT.",".ST_BANKPAYMENT.",".ST_JOURNAL.")";
 
 	if (!$settled)
 		$sql .= " AND (round(abs(ov_amount+ov_gst+ov_discount)-alloc,6) > 0)";
@@ -177,6 +183,8 @@ function get_allocatable_purch_orders($supplier_id = null, $trans_no=null, $type
 
 function get_allocatable_to_supp_transactions($supplier_id=null, $trans_no=null, $type=null)
 {
+    global $SysPrefs;
+
 	$sql = "SELECT
 		trans.type,
 		trans.trans_no,
@@ -207,8 +215,11 @@ function get_allocatable_to_supp_transactions($supplier_id=null, $trans_no=null,
 	}
 	else
 	{
-		$sql .= " AND round(ov_amount+ov_gst+ov_discount-alloc,6) > 0
-			AND trans.type NOT IN (".implode(',',array(ST_SUPPAYMENT, ST_BANKPAYMENT)).")";
+        $sql .= " AND round(ov_amount+ov_gst+ov_discount-alloc,6) > 0";
+        if ($SysPrefs->simplified_supplier_aging)
+            $sql .= " AND trans.type NOT IN (".implode(',',array(ST_BANKPAYMENT, ST_BANKDEPOSIT, ST_JOURNAL)).")";
+        else
+            $sql .= " AND trans.type NOT IN (".implode(',',array(ST_SUPPAYMENT, ST_BANKPAYMENT)).")";
 		$sql .= " GROUP BY type, trans_no";
 	}
 
@@ -260,7 +271,8 @@ function get_allocatable_from_supp_transactions($supplier_id, $trans_no=null, $t
 
 function get_sql_for_supplier_allocation_inquiry()
 {
- 	$date_after = date2sql($_POST['TransAfterDate']);
+    global $SysPrefs;
+ 	$date_after = date2sql($_POST['TransFromDate']);
  	$date_to = date2sql($_POST['TransToDate']);
 
     $sql = "SELECT 
@@ -314,5 +326,9 @@ function get_sql_for_supplier_allocation_inquiry()
    	{
    		$sql .= " AND (round(abs(ov_amount + ov_gst + ov_discount) - alloc,6) != 0) ";
    	}
+
+    if ($SysPrefs->simplified_supplier_aging)
+        $sql .= " AND trans.type IN (".ST_SUPPINVOICE.",".ST_SUPPCREDIT.",".ST_SUPPAYMENT.")";
+
    	return $sql;
 }

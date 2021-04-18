@@ -158,6 +158,7 @@ $reports->addReport(RC_CUSTOMER, 112, _('Print Receipts'),
 	array(	_('From') => 'RECEIPT',
 			_('To') => 'RECEIPT',
 			_('Currency Filter') => 'CURRENCY',
+            _('Email Customers') => 'YES_NO',
 			_('Comments') => 'TEXTBOX',
 			_('Orientation') => 'ORIENTATION'));
 
@@ -247,7 +248,7 @@ $reports->addReport(RC_INVENTORY, 303, _('Stock &Check Sheets'),
 			_('Location') => 'LOCATIONS',
 			_('Show Pictures') => 'YES_NO',
 			_('Inventory Column') => 'YES_NO',
-			_('Show Shortage') => 'YES_NO',
+			_('Show Only Shortages') => 'YES_NO',
 			_('Suppress Zeros') => 'YES_NO',
 			_('Item Like') => 'TEXT',
 			_('Comments') => 'TEXTBOX',
@@ -258,7 +259,7 @@ $reports->addReport(RC_INVENTORY, 304, _('Inventory &Sales Report'),
 			_('End Date') => 'DATEENDM',
 			_('Inventory Category') => 'CATEGORIES',
 			_('Location') => 'LOCATIONS',
-			_('Customer') => 'CUSTOMERS_NO_FILTER',
+			_('Customer/Branch') => 'CUSTOMER_BRANCHES_NO_FILTER',
 			_('Show Service Items') => 'YES_NO',
 			_('Comments') => 'TEXTBOX',
 			_('Orientation') => 'ORIENTATION',
@@ -361,7 +362,7 @@ if ($dim > 0)
 }
 $reports->addReportClass(_('Banking'), RC_BANKING);
 	$reports->addReport(RC_BANKING,  601, _('Bank &Register'),
-	array(	_('Bank Accounts') => 'BANK_ACCOUNTS',
+	array(	_('Bank Accounts') => 'BANK_ACCOUNTS_NO_FILTER',
 			_('Start Date') => 'DATEBEGINM',
 			_('End Date') => 'DATEENDM',
 			_('Zero values') => 'YES_NO',
@@ -408,6 +409,7 @@ if ($dim == 2)
 			_('Account Tags') =>  'ACCOUNTTAGS',
 			_('Comments') => 'TEXTBOX',
 			_('Orientation') => 'ORIENTATION',
+			_('Amounts in thousands') => 'YES_NO',
 			_('Destination') => 'DESTINATION'));
 	$reports->addReport(RC_GL, 706, _('&Balance Sheet'),
 	array(	_('Start Date') => 'DATEBEGIN',
@@ -460,6 +462,7 @@ elseif ($dim == 1)
 			_('Account Tags') =>  'ACCOUNTTAGS',
 			_('Comments') => 'TEXTBOX',
 			_('Orientation') => 'ORIENTATION',
+			_('Amounts in thousands') => 'YES_NO',
 			_('Destination') => 'DESTINATION'));
 	$reports->addReport(RC_GL, 706, _('&Balance Sheet'),
 	array(	_('Start Date') => 'DATEBEGIN',
@@ -507,6 +510,7 @@ else
 			_('Account Tags') =>  'ACCOUNTTAGS',
 			_('Comments') => 'TEXTBOX',
 			_('Orientation') => 'ORIENTATION',
+			_('Amounts in thousands') => 'YES_NO',
 			_('Destination') => 'DESTINATION'));
 	$reports->addReport(RC_GL, 706, _('&Balance Sheet'),
 	array(	_('Start Date') => 'DATEBEGIN',

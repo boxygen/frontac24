@@ -23,7 +23,12 @@ include_once($path_to_root . "/gl/includes/gl_db.inc");
 $js = "";
 if (user_use_date_picker())
 	$js = get_js_date_picker();
-$js .= get_js_history(array('TransFromDate', 'TransToDate', 'Dimension', 'Dimension2', 'Compare', 'AccGrp'));
+
+$fields = array('TransFromDate', 'TransToDate', 'Dimension', 'Dimension2', 'Compare');
+if (isset($_GET["AccGrp"]))
+    $fields[] = "AccGrp";
+
+$js .= get_js_history($fields);
 
 page(_($help_context = "Profit & Loss Drilldown"), false, false, "", $js);
 
@@ -40,7 +45,7 @@ if (get_post('Show'))
 	$Ajax->activate('pl_tbl');
 }
 
-set_posts(array('TransFromDate', 'TransToDate', 'Dimension', 'Dimension2', 'Compare', 'AccGrp'));
+set_posts($fields);
 
 //----------------------------------------------------------------------------------------------------
 
@@ -313,7 +318,8 @@ function display_profit_and_loss($compare)
 	}
 		
 
-	end_table(1); // outer table
+	end_table(); // outer table
+	hyperlink_params($_SERVER['PHP_SELF'], _("Back"), "TransFromDate=". $from . "&TransToDate=" . $to . "&Dimension=" . $dimension . "&Dimension2=" . $dimension2);
 	div_end();
 }
 
@@ -327,5 +333,5 @@ display_profit_and_loss(get_post('Compare'));
 
 end_form();
 
-end_page();
+end_page(false, true);
 

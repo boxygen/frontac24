@@ -22,11 +22,12 @@ if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(900, 500);
 if (user_use_date_picker())
 	$js .= get_js_date_picker();
-$js .= get_js_history(array("customer_id", "TransAfterDate", "TransToDate", "filterType"));
+$js .= get_js_history(array("customer_id", "TransFromDate", "TransToDate", "filterType"));
 
 page(_($help_context = "Customer Allocation Inquiry"), false, false, "", $js);
 
-set_posts(array("customer_id", "TransAfterDate", "TransToDate", "filterType"));
+unset ($_SESSION['filterType']);
+set_posts(array("customer_id", "TransFromDate", "TransToDate", "filterType"));
 
 //------------------------------------------------------------------------------------------------
 
@@ -40,7 +41,7 @@ start_row();
 
 customer_list_cells(_("Select a customer: "), 'customer_id', $_POST['customer_id'], true);
 
-date_cells(_("from:"), 'TransAfterDate', '', null, -abs(user_transaction_days()));
+date_cells(_("from:"), 'TransFromDate', '', null, -abs(user_transaction_days()));
 date_cells(_("to:"), 'TransToDate', '', null, 1);
 
 cust_allocations_list_cells(_("Type:"), 'filterType', null);
@@ -132,7 +133,7 @@ function fmt_credit($row)
 }
 //------------------------------------------------------------------------------------------------
 
-$sql = get_sql_for_customer_allocation_inquiry(get_post('TransAfterDate'), get_post('TransToDate'),
+$sql = get_sql_for_customer_allocation_inquiry(get_post('TransFromDate'), get_post('TransToDate'),
 		get_post('customer_id'), get_post('filterType'), check_value('showSettled'));
 
 //------------------------------------------------------------------------------------------------

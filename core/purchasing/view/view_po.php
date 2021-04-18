@@ -77,7 +77,7 @@ foreach ($purchase_order->line_items as $stock_item)
 	qty_cell($stock_item->qty_inv, false, $dec);
 	end_row();
 
-	$total += price_format($line_total);
+	$total += round2($line_total, user_price_dec());
 }
 
 label_row(_("Sub Total"), price_format($total),
@@ -122,7 +122,7 @@ if (db_num_rows($grns_result) > 0)
     	label_cell(sql2date($myrow["delivery_date"]));
     	end_row();
     }
-    end_table();;
+    end_table();
 }
 
 $invoice_result = get_po_invoices_credits($_GET['trans_no']);

@@ -14,7 +14,7 @@ $path_to_root="..";
 include($path_to_root . "/includes/session.inc");
 page(_($help_context = "Shipping Company"));
 include($path_to_root . "/includes/ui.inc");
-include($path_to_root . "/admin/db/shipping_db.inc");
+include_once($path_to_root . "/admin/db/shipping_db.inc");
 
 simple_page_mode(true);
 //----------------------------------------------------------------------------------------------

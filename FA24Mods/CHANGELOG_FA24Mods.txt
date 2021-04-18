@@ -1,5 +1,34 @@
 Files in this folder overwrite their counterparts in the core to effect the mods by Ap.Muthu.
 
+2020-09-30 Upstream installer cleanup
+2020-09-28 Upstream cleanup
+2020-08-04 Upstream PHP 7.4 fixes
+2020-07-31 Upstream fixes for Negative Inventory Adjustments
+2020-06-20 Fixed Tamil and Hindi language file versions in the inc file
+2020-06-14 Moved rep107.php 2017 mods for currency filter to upstream
+2020-06-13 Upstream fixes for Long Item Description on Invoice on per company SysPrefs
+2020-06-13 Upstream fixes for Delivery against Sales Order Inquiry Remainder value
+2020-05-15 Upstream fixes for deleting fiscal year
+2020-02-06 Updated ta_IN, hi_IN core language strings to FA 2.4.8 upstream
+2020-02-04 Moved 1 year ahead for standard charts matching upstream
+2020-01-25 Moved installer files for NL_nl and NB_no to upstream as committed there now
+2020-01-13 Upstream changes incorporated for sales order sort and synched sql
+2019-08-28 Upstream changes incorporated for DB error message in sales_order_db.inc
+2019-06-27 Upstream changes incorporated for inventory adjustment
+2019-06-24 Upstream changes incorporated
+2019-06-23 Moved inventory adjustment changes from upstream here - will be incorporated into upstream 2.5
+2019-04-22 Removed sales_order_ui.inc as fixed anew in upstream
+2019-04-21 Dutch (Netherlands) - nl_NL installer language translation files fully done
+2019-04-20 Added Dutch (Netherlands) - nl_NL installer language translation files
+2019-04-20 Commit rollback of upstream sales_order_ui.inc
+2019-04-20 Import of sales_order_ui.inc for reversion of commit
+2019-03-21 Upstream exchange rate providers fixes incorporated
+2019-03-04 Upstream en_US-demo.sql updated with demo data and cleanup of en_US-new.sql too
+2019-01-16 Upstream fix for ST_DIMENSION in references.inc patterns
+2019-01-16 Reverted Upstream fixes for SQL Strict Mode
+2019-01-10 Upstream fixes
+2019-01-08 New transaction reference fiscal year end formats {EE}/{EEEE} added
+2019-01-08 Imported files for new feature inclusion
 2018-12-23 Revert changes on 2018-12-22 in upstream rep303 to allow non numeric barcodes
 2018-12-20 config file updated for new exchange rate provider CCA
 2018-12-17 config file updated for new exchange rate provider EXCHANGE-RATES.ORG

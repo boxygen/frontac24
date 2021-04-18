@@ -52,7 +52,7 @@ start_table(TABLESTYLE_NOBORDER);
 
 start_row();
 
-text_cells(_("Description"), "description");
+text_cells_ex(_("Description"), "description", null, null, null, null, null, null, true);
 submit_cells("search", _("Search"), "", _("Search GL accounts"), "default");
 
 end_row();

@@ -79,6 +79,7 @@ function delete_supplier($supplier_id)
 
 function get_supplier_details($supplier_id, $to=null, $all=true)
 {
+    global $SysPrefs;
 
 	if ($to == null)
 		$todate = date("Y-m-d");
@@ -116,11 +117,14 @@ function get_supplier_details($supplier_id, $to=null, $all=true)
 			 AND supp.supplier_id = $supplier_id ";
 	if (!$all)
 		$sql .= "AND ABS(trans.ov_amount + trans.ov_gst + trans.ov_discount) - trans.alloc > ".FLOAT_COMP_DELTA." ";  
+    if ($SysPrefs->simplified_supplier_aging)
+        $sql .= "AND trans.type IN (".ST_SUPPINVOICE.",".ST_SUPPCREDIT.",".ST_SUPPAYMENT.")  ";
 	$sql .= "GROUP BY
 			  supp.supp_name,
 			  ".TB_PREF."payment_terms.terms,
 			  ".TB_PREF."payment_terms.days_before_due,
 			  ".TB_PREF."payment_terms.day_in_following_month";
+
     $result = db_query($sql,"The customer details could not be retrieved");
     $supp = db_fetch($result);
 
@@ -187,7 +191,7 @@ function get_supplier_currency($supplier_id)
 	$result = db_query($sql, "Retreive currency of supplier $supplier_id");
 
 	$myrow=db_fetch_row($result);
-	return $myrow[0];
+	return $myrow ? $myrow[0] : get_company_currency();
 }
 
 function get_suppliers_search_sql($supplier)

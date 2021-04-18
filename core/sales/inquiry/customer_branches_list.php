@@ -50,7 +50,7 @@ start_table(TABLESTYLE_NOBORDER);
 
 start_row();
 
-text_cells(_("Branch"), "branch");
+text_cells_ex(_("Branch"), "branch", null, null, null, null, null, null, true);
 submit_cells("search", _("Search"), "", _("Search branches"), "default");
 
 end_row();

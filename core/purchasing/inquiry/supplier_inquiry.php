@@ -22,10 +22,12 @@ if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(900, 500);
 if (user_use_date_picker())
 	$js .= get_js_date_picker();
-$js .= get_js_history(array('supplier_id', 'filterType', 'TransAfterDate', 'TransToDate'));
+$fields = array('supplier_id', 'filterType', 'TransFromDate', 'TransToDate');
+$js .= get_js_history($fields);
 page(_($help_context = "Supplier Inquiry"), isset($_GET['supplier_id']) && !isset($_GET['TransToDate']), false, "", $js);
 
-set_posts(array('supplier_id', 'filterType', 'TransAfterDate', 'TransToDate'));
+unset ($_SESSION['filterType']);
+set_posts($fields);
 
 //------------------------------------------------------------------------------------------------
 
@@ -55,10 +57,13 @@ function display_supplier_summary($supplier_record)
     end_table(1);
 }
 //------------------------------------------------------------------------------------------------
-function systype_name($dummy, $type)
+function systype_name($trans, $type)
 {
 	global $systypes_array;
-	return $systypes_array[$type];
+    if ($type == ST_SUPPAYMENT && $trans['TotalAmount'] > 0)
+        return "Supplier Refund";
+    else
+        return $systypes_array[$type];
 }
 
 function trans_view($trans)
@@ -116,6 +121,17 @@ function edit_link($row)
 	return trans_editor_link($row['type'], $row['trans_no']);
 }
 
+function attach_link($row)
+{
+    global $page_nested;
+
+    $str = '';
+    if ($page_nested)
+        return '';
+    return is_closed_trans($row['type'], $row['trans_no']) ? "--" : pager_link(_("Add an Attachment"), "/admin/attachments.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'], ICON_ATTACH);
+}
+
+
 function delete_link($row)
 {
 	global $page_nested;
@@ -123,7 +139,11 @@ function delete_link($row)
 	if ($page_nested
         || get_voided_entry($row['type'], $row['trans_no']))
 		return '';
-        return pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'], ICON_DELETE);
+
+    // FIXME: purchase order deliveries are voided using their original transaction date
+    // because the qoh algorithm in void_transaction may prevent it being voided on a later date
+
+    return is_closed_trans($row['type'], $row['trans_no']) ? "--" : pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'] . "&date_=" . sql2date($row['tran_date']), ICON_DELETE);
 }
 
 //------------------------------------------------------------------------------------------------
@@ -144,7 +164,7 @@ supp_transactions_list_cell("filterType", null, true);
 if ($_POST['filterType'] != '2')
 {
     $days = user_transaction_days();
-    date_cells(_("From:"), 'TransAfterDate', '', null, -abs($days));
+    date_cells(_("From:"), 'TransFromDate', '', null, -abs($days));
     if ($days >= 0) {
         date_cells(_("To:"), 'TransToDate');
     } else {
@@ -164,7 +184,8 @@ div_start('totals_tbl');
 if ($_POST['supplier_id'] != "" && $_POST['supplier_id'] != ALL_TEXT)
 {
 	$supplier_record = get_supplier_details(get_post('supplier_id'), get_post('TransToDate'));
-    display_supplier_summary($supplier_record);
+    if ($supplier_record != false)
+        display_supplier_summary($supplier_record);
 }
 div_end();
 
@@ -175,7 +196,7 @@ if (get_post('RefreshInquiry') || list_updated('filterType'))
 
 //------------------------------------------------------------------------------------------------
 
-$sql = get_sql_for_supplier_inquiry(get_post('filterType'), get_post('TransAfterDate'), get_post('TransToDate'), get_post('supplier_id'));
+$sql = get_sql_for_supplier_inquiry(get_post('filterType'), get_post('TransFromDate'), get_post('TransToDate'), get_post('supplier_id'));
 
 $cols = array(
 			_("Type") => array('fun'=>'systype_name', 'ord'=>''), 
@@ -189,9 +210,11 @@ $cols = array(
 			_("Amount") => array('align'=>'right', 'fun'=>'fmt_amount'), 
 			_("Balance") => array('align'=>'right', 'type'=>'amount'),
 			array('insert'=>true, 'fun'=>'gl_view'),
+
 			array('insert'=>true, 'fun'=>'credit_link'),
 			array('insert'=>true, 'fun'=>'prt_link'),
 			array('insert'=>true, 'fun'=>'edit_link'),
+			array('insert'=>true, 'fun'=>'attach_link'),
 			array('insert'=>true, 'fun'=>'delete_link')
 			);
 

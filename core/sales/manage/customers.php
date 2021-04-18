@@ -21,12 +21,13 @@ if (user_use_date_picker())
 	$js .= get_js_date_picker();
 $js .= get_js_history(array("customer_id"));
 	
-page(_($help_context = "Customers"), false, false, "", $js); 
+page(_($help_context = "Customers"), @$_REQUEST['popup'], false, "", $js); 
 
 include_once($path_to_root . "/includes/date_functions.inc");
 include_once($path_to_root . "/includes/banking.inc");
 include_once($path_to_root . "/includes/ui.inc");
 include_once($path_to_root . "/includes/ui/contacts_view.inc");
+include_once($path_to_root . "/includes/ui/attachment.inc");
 
 set_posts(array("customer_id"));
 
@@ -132,17 +133,7 @@ function handle_submit(&$selected_id)
 
         set_global_customer($_POST['customer_id']);
 
-        if (isset($_POST['referer'])) {
-            $referer=parse_url($_POST['referer'], PHP_URL_PATH);
-            $params = parse_url(htmlspecialchars_decode($_POST['referer']), PHP_URL_QUERY);
-            $params = preg_replace('/[&]*message.*/', '', $params);
-            if (!empty($params))
-                $params .= "&";
-            $params .= "message=";
-            $params .= _("A new customer has been added.");
-            meta_forward($referer, $params);
-        }
-
+        meta_forward_referer(_("A new customer has been added."));
 		display_notification(_("A new customer has been added."));
 
 		if (isset($SysPrefs->auto_create_branch) && $SysPrefs->auto_create_branch == 1)
@@ -277,6 +268,7 @@ function customer_settings($selected_id)
 		email_row(_("E-mail:"), 'email', null, 35, 55);
 		text_row(_("Bank Account Number:"), 'bank_account', null, 30, 60);
 		sales_persons_list_row( _("Sales Person:"), 'salesman', null);
+        hidden('inactive', false);
 	}
 	table_section(2);
 
@@ -322,12 +314,12 @@ function customer_settings($selected_id)
 	if (@$_REQUEST['popup']) hidden('popup', 1);
 	if (!$selected_id)
 	{
-		submit_center('submit', _("Add New Customer"), true, '', 'default');
+		submit_center('submit', _("Add New Customer"), true, '', false);
 	} 
 	else 
 	{
 		submit_center_first('submit', _("Update Customer"), 
-		  _('Update customer data'), $page_nested ? true : 'default');
+		  _('Update customer data'), $page_nested ? true : false);
 		submit_return('select', $selected_id, _("Select this customer and return to document entry."));
 		submit_center_last('delete', _("Delete Customer"), 
 		  _('Delete customer data if have been never used'), true);
@@ -339,7 +331,7 @@ function customer_settings($selected_id)
 
 check_db_has_sales_types(_("There are no sales types defined. Please define at least one sales type before adding a customer."));
  
-start_form();
+start_form(true);
 
 if (db_has_customers()) 
 {
@@ -370,6 +362,7 @@ tabbed_content_start('tabs', array(
 		'contacts' => array(_('&Contacts'), $selected_id),
 		'transactions' => array(_('&Transactions'), (user_check_access('SA_SALESTRANSVIEW') ? $selected_id : null)),
 		'orders' => array(_('Sales &Orders'), (user_check_access('SA_SALESTRANSVIEW') ? $selected_id : null)),
+		'attachments' => array(_('Attachments'), (user_check_access('SA_ATTACHDOCUMENT') ? $selected_id : null)),
 	));
 	
 	switch (get_post('_tabs_sel')) {
@@ -389,10 +382,15 @@ tabbed_content_start('tabs', array(
 			$_GET['customer_id'] = $selected_id;
 			include_once($path_to_root."/sales/inquiry/sales_orders_view.php");
 			break;
+		case 'attachments':
+			$_GET['trans_no'] = $selected_id;
+			$_GET['type_no']= ST_CUSTOMER;
+			$attachments = new attachments('attachment', $selected_id, 'customers');
+			$attachments->show();
 	};
 br();
 tabbed_content_end();
 
 end_form();
-end_page();
+end_page(@$_REQUEST['popup']);
 

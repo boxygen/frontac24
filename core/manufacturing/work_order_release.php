@@ -69,16 +69,8 @@ if (isset($_POST['release']))
 {
 	release_work_order($selected_id, $_POST['released_date'], $_POST['memo_']);
 
-	display_notification(_("The work order has been released to manufacturing."));
-
-    display_note(get_trans_view_str(ST_WORKORDER, $selected_id, _("View this Work Order")));
-
-	hyperlink_no_params("search_work_orders.php", _("Select another &work order"));
-	br();
-
-	$Ajax->activate('_page_body');
-	end_page();
-	exit;
+    // release always is called from work order inquiry so return to it
+    meta_forward_self("message=" . _("The work order has been released to manufacturing."));
 }
 
 //------------------------------------------------------------------------------------
@@ -86,6 +78,9 @@ if (isset($_POST['release']))
 start_form();
 
 $myrow = get_work_order($selected_id);
+
+if (!isset($_POST['released_date']))
+    $_POST['released_date'] = sql2date($myrow['date_']);
 
 $_POST['released'] = $myrow["released"];
 $_POST['memo_'] = "";

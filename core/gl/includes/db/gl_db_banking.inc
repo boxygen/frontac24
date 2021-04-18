@@ -205,14 +205,14 @@ function add_exchange_variation_all($date=null, $ref="", $memo)
 //	
 
 function add_bank_transfer($from_account, $to_account, $date_,
-	$amount, $ref, $memo_, $charge=0, $target_amount=0)
+	$amount, $ref, $memo_, $charge=0, $target_amount=0, $from_reconciled=null, $to_reconciled=null)
 {
 	global $Refs, $SysPrefs;
 
 	begin_transaction();
-	$args = func_get_args(); if (count($args) < 8) $args[] = 0;
+	$args = func_get_args(); for ($i = count($args); $i < 10; $i++) $args[] = 0;
 	$args = (object)array_combine(array('from_account', 'to_account', 'date_', 'amount',
-		'ref', 'memo_', 'charge', 'target_amount'), $args);
+		'ref', 'memo_', 'charge', 'target_amount', 'from_reconciled', 'to_reconciled'), $args);
 	$args->trans_no = 0;
 	hook_db_prewrite($args, ST_BANKTRANSFER);
 
@@ -238,7 +238,7 @@ function add_bank_transfer($from_account, $to_account, $date_,
     add_bank_trans($trans_type, $trans_no, $from_account, $ref,
 		$date_, -($amount + $charge),
 		PT_MISC, $person_id, $currency,
-		"Cannot insert a source bank transaction");
+		"Cannot insert a source bank transaction", 0, $from_reconciled);
 	if ($SysPrefs->auto_currency_revaluation())
 	{
 		$trans_no1 = get_next_trans_no(ST_JOURNAL);
@@ -271,7 +271,7 @@ function add_bank_transfer($from_account, $to_account, $date_,
 	
 	add_bank_trans($trans_type, $trans_no, $to_account, $ref,
 		$date_, $to_amount, PT_MISC, $person_id,
-		$to_currency, "Cannot insert a destination bank transaction");
+		$to_currency, "Cannot insert a destination bank transaction", 0, $to_reconciled);
 
 	if ($SysPrefs->auto_currency_revaluation())
 	{
@@ -366,16 +366,31 @@ function check_bank_transfer($trans_no, $from_account, $to_account, $date_,
 
 function update_bank_transfer(
 	$trans_no, $from_account, $to_account, $date_,
-	$amount, $ref, $memo_, $charge=0, $target_amount=0)
+	$amount, $ref, $memo_, $charge=0, $target_amount=0, $from_reconciled="", $to_reconciled="")
 {
 	begin_transaction();
-	delete_comments(ST_BANKTRANSFER, $trans_no);
-	void_transaction(ST_BANKTRANSFER, $trans_no, Today(), _("Document reentered."));
-	void_gl_trans(ST_BANKTRANSFER, $trans_no, true);
+
+    // Add the new bank transfer first in case the new transfer
+    // would allow the void balance check to succeed
+
 	$new_trans_no = add_bank_transfer(
 		$from_account, $to_account, $date_, $amount,
-		$ref, $memo_, $charge, $target_amount
+		$ref, $memo_, $charge, $target_amount, $from_reconciled, $to_reconciled
 	);
+
+    // Delete the old bank transfer
+
+	delete_comments(ST_BANKTRANSFER, $trans_no);
+	$result = void_transaction(ST_BANKTRANSFER, $trans_no, Today(), _("Document reentered."));
+    if ($result !== false) {
+        display_error($result);
+        delete_comments(ST_BANKTRANSFER, $new_trans_no);
+        void_transaction(ST_BANKTRANSFER, $new_trans_no, Today(), _("Document reentered."));
+        void_gl_trans(ST_BANKTRANSFER, $new_trans_no, true);
+        return 0;
+    }
+
+	void_gl_trans(ST_BANKTRANSFER, $trans_no, true);
 	commit_transaction();
 	return $new_trans_no;
 }
@@ -520,7 +535,7 @@ function write_bank_transaction($trans_type, $trans_no, $from_account, $items, $
 	}
 
 	// do the source account postings
-    add_gl_trans($trans_type, $trans_no, $date_, $bank_gl_account, 0, 0, $memo_,
+    add_gl_trans($trans_type, $trans_no, $date_, $bank_gl_account, $gl_item->dimension_id, $gl_item->dimension2_id, $memo_,
     	-$total, null, $person_type_id, $person_id);
 
     if ($do_exchange_variance)

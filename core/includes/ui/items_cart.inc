@@ -101,7 +101,7 @@ class items_cart
 
 		$low_stock = array();
 
-    	if (!$SysPrefs->allow_negative_stock() || is_fixed_asset($line_item->mb_flag))
+    	if (!$SysPrefs->allow_negative_stock())
     	{
 			foreach ($this->line_items as $line_no => $line_item)
 				if (has_stock_holding($line_item->mb_flag) || is_fixed_asset($line_item->mb_flag))
@@ -144,8 +144,8 @@ class items_cart
 	    $this->gl_items[$index]->code_id = $code_id;
 	    $this->gl_items[$index]->person_id = $person_id;
 
-		$gl_type = is_subledger_account($code_id, $person_id);
-		if ($gl_type)
+        $gl_type = is_subledger_account($code_id);
+        if ($person_id != null && $gl_type)
 		{
 			$this->gl_items[$index]->person_type_id = $gl_type > 0 ? PT_CUSTOMER : PT_SUPPLIER;
 			$data = get_subaccount_data($code_id, $person_id);
@@ -263,7 +263,7 @@ class items_cart
 
 		foreach($this->gl_items as $gl)
 		{
-			if ($person_type = is_subledger_account($gl->code_id, $gl->person_id))
+            if ($person_type = is_subledger_account($gl->code_id))
 			{
 				$tax_info['person_type'] = $person_type < 0 ? PT_SUPPLIER : PT_CUSTOMER;
 				$tax_info['person_id'] = $gl->person_id;
@@ -520,8 +520,8 @@ class gl_item
 
 		$this->code_id = $code_id;
 		$this->person_id = $person_id;
-		$gl_type = is_subledger_account($code_id, $person_id);
-		if ($gl_type)
+        $gl_type = is_subledger_account($code_id);
+        if ($person_id != null  && $gl_type)
 		{
 			$this->person_type_id = $gl_type > 0 ? PT_CUSTOMER : PT_SUPPLIER;
 			$data = get_subaccount_data($code_id, $person_id);

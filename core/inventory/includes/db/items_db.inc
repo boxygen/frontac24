@@ -41,7 +41,7 @@ function update_item($stock_id, $description, $long_description, $category_id,
 	if ($mb_flag != '')
 		$sql .= ", mb_flag=".db_escape($mb_flag);
 
-	if ($depreciation_start != '') {
+	if (isset($depreciation_start)) {
 		$sql .= ", depreciation_start='".date2sql($depreciation_start)."'"
 			.", depreciation_date='".date2sql($depreciation_start)."'";
 	}
@@ -63,8 +63,9 @@ function add_item($stock_id, $description, $long_description, $category_id,
 	$sql = "INSERT INTO ".TB_PREF."stock_master (stock_id, description, long_description, category_id,
 		tax_type_id, units, mb_flag, sales_account, inventory_account, cogs_account,
 		adjustment_account, wip_account, dimension_id, dimension2_id, no_sale, no_purchase, editable,
-		depreciation_method, depreciation_rate, depreciation_factor, depreciation_start, depreciation_date, fa_class_id)
-		VALUES (".db_escape($stock_id).", ".db_escape($description).", ".db_escape($long_description).",
+		depreciation_method, depreciation_rate, depreciation_factor"
+		.(isset($depreciation_start) ? ", depreciation_start, depreciation_date, fa_class_id" : "")
+		.") VALUES (".db_escape($stock_id).", ".db_escape($description).", ".db_escape($long_description).",
 		".db_escape($category_id).", ".db_escape($tax_type_id).", "
 		.db_escape($units).", ".db_escape($mb_flag).",
 		".db_escape($sales_account).", ".db_escape($inventory_account)
@@ -74,9 +75,9 @@ function add_item($stock_id, $description, $long_description, $category_id,
 		.db_escape($no_sale).","
 		.db_escape($no_purchase).","
 		.db_escape($editable).","
-		.db_escape($depreciation_method).",".db_escape($depreciation_rate).",".db_escape($depreciation_factor).",'"
-		.date2sql($depreciation_start)."','".date2sql($depreciation_start)."',"
-		.db_escape($fa_class_id).")";
+		.db_escape($depreciation_method).",".db_escape($depreciation_rate).",".db_escape($depreciation_factor)
+		.(isset($depreciation_start) ? ",'".date2sql($depreciation_start)."','".date2sql($depreciation_start)."',".db_escape($fa_class_id) : "")
+		.")";
 
 	db_query($sql, "The item could not be added");
 
@@ -155,7 +156,7 @@ function get_items($fixed_asset = 0)
 	return db_query($sql,"items could not be retreived");
 }
 
-function item_in_foreign_codes($stock_id)
+function item_used($stock_id)
 {
 	$sqls=  array(
 	"SELECT COUNT(*) FROM "
@@ -182,25 +183,26 @@ function item_in_foreign_codes($stock_id)
 			$msg = $err; break;
 		}
 	}
-	if ($msg == '') {
+    return $msg;
+}
 
-		$kits = get_where_used($stock_id);
-		$num_kits = db_num_rows($kits);
-		if ($num_kits) {
-			$msg = _("This item cannot be deleted because some code aliases 
-				or foreign codes was entered for it, or there are kits defined 
-				using this item as component")
-				.':<br>';
+function item_in_foreign_codes($stock_id)
+{
+    $msg = '';
+    $kits = get_where_used($stock_id);
+    $num_kits = db_num_rows($kits);
+    if ($num_kits) {
+        $msg = _("This item had some code aliases or foreign codes
+            or was used in a kit as a component")
+            .':<br>';
 
-			while($num_kits--) {
-				$kit = db_fetch($kits);
-				$msg .= "'".$kit[0]."'";
-				if ($num_kits) $msg .= ',';
-			}
-
-		}
-	}
-	return $msg;
+        while($num_kits--) {
+            $kit = db_fetch($kits);
+            $msg .= "'".$kit[0]."'";
+            if ($num_kits) $msg .= ',';
+        }
+    }
+    return $msg;
 }
 
 function get_items_search_sql($description, $type)

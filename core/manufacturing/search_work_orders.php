@@ -16,6 +16,8 @@ include_once($path_to_root . "/includes/session.inc");
 
 include_once($path_to_root . "/includes/date_functions.inc");
 include_once($path_to_root . "/manufacturing/includes/manufacturing_ui.inc");
+include_once($path_to_root . "/reporting/includes/reporting.inc");
+
 $js = "";
 if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(800, 500);
@@ -117,7 +119,7 @@ function edit_link($row)
 
 function delete_link($row)
 {
-        return pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['id'] . "&filterType=". ST_WORKORDER, ICON_DELETE);
+        return is_closed_trans(ST_WORKORDER, $row['id']) ? "--" : pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['id'] . "&filterType=". ST_WORKORDER, ICON_DELETE);
 }
 
 
@@ -151,6 +153,11 @@ function view_gl_link($row)
 	return get_gl_view_str(ST_WORKORDER, $row['id']);
 }
 
+function prt_link($row)
+{
+	return print_document_link($row['id'], _("Print"), true, ST_WORKORDER, ICON_PRINT);
+}
+
 function dec_amount($row, $amount)
 {
 	return number_format2($amount, $row['decimals']);
@@ -169,10 +176,12 @@ $cols = array(
 	_("Manufactured") => array('fun'=>'dec_amount', 'align'=>'right'),
 	_("Date") => array('name'=>'date_', 'type'=>'date', 'ord'=>'desc'), 
 	_("Required By") => array('type'=>'date', 'ord'=>''),
+
 	array('insert'=>true, 'fun'=> 'release_link'),
 	array('insert'=>true, 'fun'=> 'costs_link'),
 	array('insert'=>true, 'fun'=> 'produce_link'),
-	array('insert'=>true, 'fun'=> 'view_gl_link'),
+		array('insert'=>true, 'fun'=> 'view_gl_'),
+	array('insert'=>true, 'fun'=> 'prt_link'),
 	array('insert'=>true, 'fun'=> 'edit_link'),
 	array('insert'=>true, 'fun'=> 'delete_link')
 );

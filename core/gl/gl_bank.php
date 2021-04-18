@@ -70,8 +70,6 @@ function line_start_focus() {
   	global 	$Ajax;
 
     unset($_POST['amount']);
-    unset($_POST['dimension_id']);
-    unset($_POST['dimension2_id']);
     unset($_POST['LineMemo']);
   	$Ajax->activate('items_table');
   	$Ajax->activate('footer');
@@ -89,9 +87,10 @@ if (isset($_GET['AddedID']))
 
 	display_note(get_gl_view_str($trans_type, $trans_no, _("&View the GL Postings for this Payment")));
 
-	hyperlink_params($_SERVER['PHP_SELF'], _("Enter Another &Payment"), "NewPayment=yes&date_=".$_GET['date_']."&bank_account=".$_POST['bank_account']);
+	hyperlink_params($_SERVER['PHP_SELF'], _("Edit This &Payment"), "ModifyPayment=yes&trans_type=$trans_type&trans_no=$trans_no");
+	hyperlink_params($_SERVER['PHP_SELF'], _("Enter Another &Payment"), "NewPayment=yes");
 
-	hyperlink_params($_SERVER['PHP_SELF'], _("Enter A &Deposit"), "NewDeposit=yes&date_=".$_GET['date_']."&bank_account=".$_POST['bank_account']);
+	hyperlink_params($_SERVER['PHP_SELF'], _("Enter A &Deposit"), "NewDeposit=yes");
 
 	hyperlink_params("$path_to_root/admin/attachments.php", _("Add an Attachment"), "filterType=$trans_type&trans_no=$trans_no");
 
@@ -107,6 +106,7 @@ if (isset($_GET['UpdatedID']))
 
 	display_note(get_gl_view_str($trans_type, $trans_no, _("&View the GL Postings for this Payment")));
 
+	hyperlink_params($_SERVER['PHP_SELF'], _("Edit This &Payment"), "ModifyPayment=yes&trans_type=$trans_type&trans_no=$trans_no");
 	hyperlink_params($_SERVER['PHP_SELF'], _("Enter Another &Payment"), "NewPayment=yes");
 
 	hyperlink_params($_SERVER['PHP_SELF'], _("Enter A &Deposit"), "NewDeposit=yes");
@@ -123,9 +123,9 @@ if (isset($_GET['AddedDep']))
 
 	display_note(get_gl_view_str($trans_type, $trans_no, _("View the GL Postings for this Deposit")));
 
-	hyperlink_params($_SERVER['PHP_SELF'], _("Enter Another Deposit"), "NewDeposit=yes&date_=".$_GET['date_']."&bank_account=".$_POST['bank_account']);
+	hyperlink_params($_SERVER['PHP_SELF'], _("Enter Another Deposit"), "NewDeposit=yes");
 
-	hyperlink_params($_SERVER['PHP_SELF'], _("Enter A Payment"), "NewPayment=yes&date_=".$_GET['date_']."&bank_account=".$_POST['bank_account']);
+	hyperlink_params($_SERVER['PHP_SELF'], _("Enter A Payment"), "NewPayment=yes");
 
 	display_footer_exit();
 }
@@ -208,10 +208,7 @@ function create_cart($type, $trans_no)
 
 	} else {
 		$cart->reference = $Refs->get_next($cart->trans_type, null, $cart->tran_date);
-	        if (isset($_GET['date_']))
-                    $cart->tran_date  = $_GET['date_'];
-                else
-                    $cart->tran_date = new_doc_date();
+        $cart->tran_date = sql2date(last_bank_trans('trans_date'));
 		if (!is_date_in_fiscalyear($cart->tran_date))
 			$cart->tran_date = end_fiscalyear();
 	}
@@ -309,6 +306,10 @@ if (isset($_POST['Process']) && !check_trans())
 		$_POST['PayType'], $_POST['person_id'], get_post('PersonDetailID'),
 		$_POST['ref'], $_POST['memo_'], true, input_num('settled_amount', null));
 
+	commit_transaction();
+
+    if ($trans != false) {
+
 	$trans_type = $trans[0];
    	$trans_no = $trans[1];
 
@@ -326,16 +327,15 @@ if (isset($_POST['Process']) && !check_trans())
 	$_POST['pay_items']->clear_items();
 	unset($_POST['pay_items']);
 
-	commit_transaction();
-
     $params = "";
     if ($new) {
         $params .= ($trans_type==ST_BANKPAYMENT ?  "AddedID=" : "AddedDep=");
-        $params .= "$trans_no&date_=".$_POST['date_']."&bank_account=".$_POST['bank_account'];
+        $params .= "$trans_no";
     } else
         $params .= ($trans_type==ST_BANKPAYMENT ?
             "UpdatedID=$trans_no" : "UpdatedDep=$trans_no");
     meta_forward_self($params);
+    }
 
 }
 
@@ -408,9 +408,10 @@ if (isset($_POST['CancelItemChanges']) || isset($_POST['Index']))
 
 if (isset($_POST['go']))
 {
-	display_quick_entries($_POST['pay_items'], $_POST['person_id'], input_num('totamount'), 
-		$_POST['pay_items']->trans_type==ST_BANKPAYMENT ? QE_PAYMENT : QE_DEPOSIT);
-	$_POST['totamount'] = price_format(0); $Ajax->activate('totamount');
+    if ($_POST['PayType'] == PT_QUICKENTRY)
+        display_quick_entries($_POST['pay_items'], $_POST['person_id'], input_num('totamount'), 
+            $_POST['pay_items']->trans_type==ST_BANKPAYMENT ? QE_PAYMENT : QE_DEPOSIT);
+	$Ajax->activate('totamount');
 	line_start_focus();
 }
 //-----------------------------------------------------------------------------------------------

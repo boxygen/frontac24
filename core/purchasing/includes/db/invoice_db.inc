@@ -16,18 +16,24 @@ include_once($path_to_root . "/admin/db/attachments_db.inc");
 
 function read_supplier_details_to_trans(&$supp_trans, $supplier_id)
 {
-	$sql = "SELECT supp.supp_name, terms.terms, terms.days_before_due,
+    global $SysPrefs;
+
+	$sql = "SELECT supp.supp_name, terms.terms, terms.days_before_due, supp.dimension_id, supp.dimension2_id,
 		terms.day_in_following_month, supp.tax_included,
 		supp.tax_group_id, tax_group.name AS tax_group_name,
-		supp.credit_limit - Sum(IFNULL(IF(trans.type=".ST_SUPPCREDIT.", -1, 1) 
-			* (ov_amount + ov_gst + ov_discount),0)) as cur_credit
+		supp.credit_limit - Sum((ov_amount + ov_gst + ov_discount)) as cur_credit, curr_code
 		FROM ".TB_PREF."suppliers supp LEFT JOIN "
 			.TB_PREF."supp_trans trans ON supp.supplier_id = trans.supplier_id, "
 			.TB_PREF."payment_terms terms, "
 			.TB_PREF."tax_groups tax_group
 		WHERE supp.tax_group_id = tax_group.id
 		AND supp.payment_terms=terms.terms_indicator
-		AND supp.supplier_id = ".db_escape($supplier_id)." GROUP BY supp.supp_name";
+		AND supp.supplier_id = ".db_escape($supplier_id);
+
+    if ($SysPrefs->simplified_supplier_aging)
+        $sql .= " AND trans.type IN (".ST_SUPPINVOICE.",".ST_SUPPAYMENT.",".ST_SUPPCREDIT.")";
+
+    $sql .= " GROUP BY supp.supp_name";
 
 	$result = db_query($sql, "The supplier record selected: " . $supplier_id . " cannot be retrieved");
 
@@ -40,10 +46,7 @@ function read_supplier_details_to_trans(&$supp_trans, $supplier_id)
 		if (!is_date_in_fiscalyear($supp_trans->tran_date))
 			$supp_trans->tran_date = end_fiscalyear();
 	}
-	if ($supp_trans->supplier_id != $supplier_id)
-	    get_duedate_from_terms($supp_trans);
 
-    $supp_trans->supplier_id = $supplier_id;
     $supp_trans->tax_included = $myrow['tax_included'];
     $supp_trans->supplier_name = $myrow['supp_name'];
 	$supp_trans->terms = array( 
@@ -51,11 +54,19 @@ function read_supplier_details_to_trans(&$supp_trans, $supplier_id)
 		'days_before_due' => $myrow['days_before_due'], 
 		'day_in_following_month' => $myrow['day_in_following_month'] );
 
+	if ($supp_trans->supplier_id != $supplier_id)
+	    get_duedate_from_terms($supp_trans);
+
+    $supp_trans->supplier_id = $supplier_id;
+
 	$supp_trans->credit = $myrow['cur_credit'];
 
 	$supp_trans->tax_description = $myrow['tax_group_name'];
 	$supp_trans->tax_group_id = $myrow['tax_group_id'];
-
+	$supp_trans->dimension = $myrow['dimension_id'];
+	$supp_trans->dimension2 = $myrow['dimension2_id'];
+	$supp_trans->currency = $myrow['curr_code'];
+ 
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -129,6 +140,10 @@ function add_supp_invoice(&$supp_trans)
 	$trans_no = $supp_trans->trans_no;
 	$trans_type = $supp_trans->trans_type;
 	$supplier = get_supplier($supp_trans->supplier_id);
+    $dim = !empty($supp_trans->dimension) ? $supp_trans->dimension :
+        ($supplier['dimension_id'] ? $supplier['dimension_id'] : 0);
+    $dim2 = !empty($supp_trans->dimension2) ? $supp_trans->dimension2 :
+        ($supplier['dimension2_id'] ? $supplier['dimension2_id'] : 0);
 
 	begin_transaction();
 	hook_db_prewrite($supp_trans, $trans_type);
@@ -141,7 +156,7 @@ function add_supp_invoice(&$supp_trans)
 	} else
 		$allocs = get_po_prepayments($supp_trans);
 
-	add_new_exchange_rate($supplier['curr_code'], $supp_trans->tran_date, $supp_trans->ex_rate);
+	add_new_exchange_rate($supp_trans->currency, $supp_trans->tran_date, $supp_trans->ex_rate);
 
     foreach ($taxes as $n => $taxitem)
     {
@@ -169,7 +184,7 @@ function add_supp_invoice(&$supp_trans)
 	}
 
     $date_ = $supp_trans->tran_date;
-	$ex_rate = get_exchange_rate_from_home_currency($supplier['curr_code'], $date_);
+	$ex_rate = get_exchange_rate_from_home_currency($supp_trans->currency, $date_);
 
     /*First insert the invoice into the supp_trans table*/
 	$invoice_id = write_supp_trans($trans_type, 0, $supp_trans->supplier_id, $date_, $supp_trans->due_date,
@@ -207,7 +222,7 @@ function add_supp_invoice(&$supp_trans)
 				if ($trans_type == ST_SUPPCREDIT)
 					$taxitem['Value'] = -$taxitem['Value'];
 				$total += add_gl_trans_supplier($trans_type, $invoice_id, $date_,
-					$taxitem['purchasing_gl_code'], 0, 0, $taxitem['Value'],
+					$taxitem['purchasing_gl_code'], $dim, $dim2, $taxitem['Value'],
 					$supp_trans->supplier_id,
 					"A general ledger transaction for the tax amount could not be added");
 			}
@@ -217,7 +232,7 @@ function add_supp_invoice(&$supp_trans)
 		$net_diff = -$net_diff;
 
     /* Now the AP account */
-    $total += add_gl_trans_supplier($trans_type, $invoice_id, $date_, $supplier["payable_account"], 0, 0,
+    $total += add_gl_trans_supplier($trans_type, $invoice_id, $date_, $supplier["payable_account"], $dim, $dim2,
 		-($invoice_items_total +  $item_added_tax + $supp_trans->ov_discount),
 		$supp_trans->supplier_id,
 		"The general ledger transaction for the control total could not be added");
@@ -303,7 +318,7 @@ function add_supp_invoice(&$supp_trans)
 					$dim, $dim2, $taxfree_line, $supp_trans->supplier_id);
 			else
 			{
-				$ex_rate = get_exchange_rate_from_home_currency($supplier['curr_code'], $old_date);
+				$ex_rate = get_exchange_rate_from_home_currency($supp_trans->currency, $old_date);
 				$old_value = get_tax_free_price_for_item($entered_grn->item_code, $entered_grn->this_quantity_inv * $old_price, 
 					  $supp_trans->tax_group_id, $supp_trans->tax_included);
 
@@ -352,7 +367,6 @@ function add_supp_invoice(&$supp_trans)
 					}
 				}
 			}
-			add_or_update_purchase_data($supp_trans->supplier_id, $entered_grn->item_code, $entered_grn->chg_price); 
 		}
 		update_purchase_value($entered_grn->item_code, $entered_grn->chg_price * $ex_rate);
 		add_supp_invoice_item($trans_type, $invoice_id, $entered_grn->item_code,
@@ -449,7 +463,7 @@ function get_tax_overrides($trans_type, $trans_no)
 
 function read_supp_invoice($trans_no, $trans_type, &$supp_trans)
 {
-	$sql = "SELECT trans.*, supp_name 
+	$sql = "SELECT trans.*, supp_name, dimension_id, dimension2_id, curr_code
 		FROM ".TB_PREF."supp_trans trans,"
 			.TB_PREF."suppliers sup
 		WHERE trans_no = ".db_escape($trans_no)." AND type = ".db_escape($trans_type)."
@@ -472,6 +486,9 @@ function read_supp_invoice($trans_no, $trans_type, &$supp_trans)
 		$supp_trans->ov_discount = $trans_row["ov_discount"];
 		$supp_trans->ov_gst = $trans_row["ov_gst"];
 		$supp_trans->tax_included = $trans_row["tax_included"];
+		$supp_trans->dimension = $trans_row["dimension_id"];
+		$supp_trans->dimension2 = $trans_row["dimension2_id"];
+		$supp_trans->currency = $trans_row["curr_code"];
 
 		$id = $trans_row["trans_no"];
 

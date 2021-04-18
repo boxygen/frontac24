@@ -55,7 +55,7 @@ function delete_customer($customer_id)
 	begin_transaction();
 	delete_entity_contacts('customer', $customer_id);
 
-	$sql = "DELETE FROM ".TB_PREF."debtors_master WHERE debtor_no=".db_escape($customer_id);;
+	$sql = "DELETE FROM ".TB_PREF."debtors_master WHERE debtor_no=".db_escape($customer_id);
 	db_query($sql,"cannot delete customer");
 	commit_transaction();
 }
@@ -77,8 +77,8 @@ function get_customer_details($customer_id, $to=null, $all=true)
 	if ($all)
     	$value = "IFNULL($sign*(trans.ov_amount + trans.ov_gst + trans.ov_freight + trans.ov_freight_tax + trans.ov_discount),0)";
     else		
-    	$value = "IFNULL($sign*(trans.ov_amount + trans.ov_gst + trans.ov_freight + trans.ov_freight_tax + trans.ov_discount - 
-    		trans.alloc),0)";
+    	$value = "IFNULL($sign*(trans.ov_amount + trans.ov_gst + trans.ov_freight + trans.ov_freight_tax + trans.ov_discount + 
+    		IF(`type` = ".ST_JOURNAL.",trans.alloc,-trans.alloc)),0)";
 	$due = "IF (trans.type=".ST_SALESINVOICE.", trans.due_date, trans.tran_date)";
     $sql = "SELECT debtor.name, debtor.curr_code, terms.terms, debtor.credit_limit,
     			credit_status.dissallow_invoices, credit_status.reason_description,
@@ -95,6 +95,7 @@ function get_customer_details($customer_id, $to=null, $all=true)
 	 			AND debtor.credit_status = credit_status.id";
 	 if ($customer_id)
 		$sql .= " AND debtor.debtor_no = ".db_escape($customer_id);
+
 
 	if (!$all)
 		$sql .= " AND ABS(trans.ov_amount + trans.ov_gst + trans.ov_freight + trans.ov_freight_tax + trans.ov_discount - trans.alloc) > ".FLOAT_COMP_DELTA;
@@ -197,7 +198,7 @@ function get_customer_currency($customer_id=null, $branch_id=null)
 	$result = db_query($sql, "Retreive currency of customer $customer_id");
 
 	$myrow=db_fetch_row($result);
-	return $myrow[0];
+	return $myrow ? $myrow[0] : get_company_currency();
 }
 
 function get_customers_search_sql($customer)

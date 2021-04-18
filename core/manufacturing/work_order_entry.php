@@ -20,7 +20,7 @@ include_once($path_to_root . "/includes/data_checks.inc");
 include_once($path_to_root . "/manufacturing/includes/manufacturing_db.inc");
 include_once($path_to_root . "/manufacturing/includes/manufacturing_ui.inc");
 
-$posts=array('stock_id', 'quantity', 'date_', 'Labour', 'Costs', 'cr_lab_acc', 'cr_acc');
+$posts=array('type', 'stock_id', 'quantity', 'date_', 'Labour', 'Costs', 'cr_lab_acc', 'cr_acc');
 $js = "";
 if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(900, 500);
@@ -31,12 +31,8 @@ $js .= get_js_history($posts);
 page(_($help_context = "Work Order Entry"), false, false, "", $js);
 
 set_posts($posts);
-if (isset($_GET['account'])) {
-    if ($_GET['account'] == $_POST['cr_lab_acc'])
-        $_POST['Labour'] += abs($_GET['amount']);
-    if ($_GET['account'] == $_POST['cr_acc'])
-        $_POST['Costs'] += abs($_GET['amount']);
-}
+if (isset($_GET['select']))
+        $_POST[$_GET['select']] = abs($_GET['amount']);
 
 check_db_has_manufacturable_items(_("There are no manufacturable items defined in the system."));
 
@@ -143,7 +139,8 @@ function can_process()
     	}
 	}
 
-	if (!check_num('quantity', 1))
+	qty_format(1, $_POST['stock_id'], $dec);
+	if (!check_num('quantity', $dec == 0 ? 1 : 1 / ($dec * 10)))
 	{
 		display_error( _("The quantity entered is invalid or less than zero."));
 		set_focus('quantity');
@@ -436,11 +433,11 @@ else
     date_row(_("Date") . ":", 'date_', '', true);
 	hidden('RequDate', '');
 
-    $bank_act = get_default_bank_account();
+    $last_acct = last_wo_costing_account();
     if (!isset($_POST['cr_acc']))
-        $_POST['cr_acc'] = $bank_act['account_code'];
+        $_POST['cr_acc'] = $last_acct['account'];
     if (!isset($_POST['cr_lab_acc']))
-        $_POST['cr_lab_acc'] = $bank_act['account_code'];
+        $_POST['cr_lab_acc'] = $last_acct['account'];
 
 	if (!isset($_POST['Labour']) || list_updated('stock_id') || list_updated('type'))
 	{
@@ -454,14 +451,14 @@ else
 	gl_all_accounts_list_cells($wo_cost_types[WO_LABOUR] . " " ._("Account"), 'cr_lab_acc', null, false, false, false, true);
     end_row();
 	amount_row(
-        menu_link("gl/inquiry/gl_account_inquiry.php" . "?select=true&account=".$_POST['cr_lab_acc'], _("Add Cost")),
+        menu_link("gl/inquiry/gl_account_inquiry.php" . "?select=Labour&account=".$_POST['cr_lab_acc'], _("Add Cost")),
         'Labour');
 
     start_row();
 	gl_all_accounts_list_cells($wo_cost_types[WO_OVERHEAD] . " " ._("Account"), 'cr_acc', null, false, false, false, true);
     end_row();
 	amount_row(
-        menu_link("gl/inquiry/gl_account_inquiry.php" . "?select=true&account=".$_POST['cr_acc'], _("Add Cost")),
+        menu_link("gl/inquiry/gl_account_inquiry.php" . "?select=Costs&account=".$_POST['cr_acc'], _("Add Cost")),
         'Costs');
 
 }

@@ -25,6 +25,7 @@ $js = "";
 if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(800, 500);
 page(_($help_context = "View or Print Transactions"), false, false, "", $js);
+set_posts(array('filterType'));
 
 //----------------------------------------------------------------------------------------
 function view_link($trans)
@@ -45,21 +46,18 @@ function prt_link($row)
 		return print_document_link($row['trans_no']."-".$row['type'], _("Print"), true, $row['type'], ICON_PRINT);
 }
 
+function delete_link($row)
+{
+	if (!isset($row['type']))
+		$row['type'] = $_POST['filterType'];
+    return pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'], ICON_DELETE);
+}
+
 function gl_view($row)
 {
 	if (!isset($row['type']))
 		$row['type'] = $_POST['filterType'];
 	return get_gl_view_str($row["type"], $row["trans_no"]);
-}
-
-function date_view($row)
-{
-	return $row['trans_date'];
-}
-
-function ref_view($row)
-{
-	return $row['ref'];
 }
 
 function viewing_controls()
@@ -69,7 +67,7 @@ function viewing_controls()
     start_table(TABLESTYLE_NOBORDER);
 	start_row();
 
-	systypes_list_cells(_("Type:"), 'filterType', null, true);
+	systypes_list_cells(_("Type:"), 'filterType', null, true, array(ST_CUSTOMER, ST_SUPPLIER));
 
 	if (!isset($_POST['FromTransNo']))
 		$_POST['FromTransNo'] = "1";
@@ -123,14 +121,16 @@ function handle_search()
 			$print_type == ST_CUSTPAYMENT || $print_type == ST_SUPPAYMENT || $print_type == ST_WORKORDER);
 
 		$cols = array(
-			_("#") => array('insert'=>true, 'fun'=>'view_link'), 
-			_("Reference") => array('fun'=>'ref_view'), 
-			_("Date") => array('type'=>'date', 'fun'=>'date_view'),
+			_("#") => array('fun'=>'view_link'), 
+			_("Reference") => array(), 
+            _("Date") => array('name'=>'trans_date', 'type'=>'date', 'ord'=>'desc'),
+			_("Comments") => array(),
 			_("Print") => array('insert'=>true, 'fun'=>'prt_link'), 
-			_("GL") => array('insert'=>true, 'fun'=>'gl_view')
+			_("GL") => array('insert'=>true, 'fun'=>'gl_view'),
+			_("X") => array('insert'=>true, 'fun'=>'delete_link')
 		);
 		if(!$print_out) {
-			array_remove($cols, 3);
+			array_remove($cols, 4);
 		}
 		if(!$trans_ref) {
 			array_remove($cols, 1);

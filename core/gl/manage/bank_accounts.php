@@ -129,7 +129,10 @@ while ($myrow = db_fetch($result))
 	else
 		label_cell(_("No"));
 
-	inactive_control_cell($myrow["id"], $myrow["inactive"], 'bank_accounts', 'id');
+    if ($myrow["gl_inactive"])
+        label_cell("-- G/L --");
+    else
+        inactive_control_cell($myrow["id"], $myrow["inactive"], 'bank_accounts', 'id');
  	edit_button_cell("Edit".$myrow["id"], _("Edit"));
  	delete_button_cell("Delete".$myrow["id"], _("Delete"));
     end_row(); 

@@ -29,6 +29,8 @@ print_supplier_balances();
 
 function get_open_balance($supplier_id, $to)
 {
+    global $SysPrefs;
+
     if ($to)
         $to = date2sql($to);
 
@@ -47,14 +49,20 @@ function get_open_balance($supplier_id, $to)
         WHERE t.supplier_id = ".db_escape($supplier_id);
     if ($to)
         $sql .= " AND t.tran_date < '$to'";
+
+    if ($SysPrefs->simplified_supplier_aging)
+        $sql .= " AND t.type IN (".ST_SUPPINVOICE.",".ST_SUPPCREDIT.",".ST_SUPPAYMENT.")";
+
     $sql .= " GROUP BY supplier_id";
 
     $result = db_query($sql,"No transactions were returned");
     return db_fetch($result);
 }
 
-function getTransactions($supplier_id, $from, $to)
+function getTransactions($supplier_id, $from, $to, $no_zeros)
 {
+    global $SysPrefs;
+
 	$from = date2sql($from);
 	$to = date2sql($to);
 
@@ -64,8 +72,14 @@ function getTransactions($supplier_id, $from, $to)
 				((type = ".ST_SUPPINVOICE.") AND due_date < '$to') AS OverDue
    			FROM ".TB_PREF."supp_trans
    			WHERE tran_date >= '$from' AND tran_date <= '$to' 
-    			AND supplier_id = '$supplier_id' AND ov_amount!=0
-    				ORDER BY tran_date";
+    			AND supplier_id = '$supplier_id' AND ov_amount!=0";
+
+    if ($SysPrefs->simplified_supplier_aging)
+        $sql .= " AND type IN (".ST_SUPPINVOICE.",".ST_SUPPCREDIT.",".ST_SUPPAYMENT.")";
+
+    if ($no_zeros)
+        $sql .= " AND ABS(ov_amount + ov_gst + ov_discount)!=alloc ";
+    $sql .= " ORDER BY tran_date";
 
     $TransResult = db_query($sql,"No transactions were returned");
 
@@ -149,18 +163,20 @@ function print_supplier_balances()
 		$accumulate = 0;
 		$rate = $convert ? get_exchange_rate_from_home_currency($myrow['curr_code'], Today()) : 1;
 		$bal = get_open_balance($myrow['supplier_id'], $from);
-		$init[0] = $init[1] = 0.0;
-		$init[0] = round2(abs($bal['charges']*$rate), $dec);
-		$init[1] = round2(Abs($bal['credits']*$rate), $dec);
-		$init[2] = round2($bal['Allocated']*$rate, $dec);
+		$init[0] = $init[1] = $init[2] = 0.0;
+        if ($bal != false) {
+            $init[0] = round2(abs($bal['charges']*$rate), $dec);
+            $init[1] = round2(Abs($bal['credits']*$rate), $dec);
+            $init[2] = round2($bal['Allocated']*$rate, $dec);
+        }
 		if ($show_balance)
 		{
 			$init[3] = $init[0] - $init[1];
 			$accumulate += $init[3];
 		}	
-		else	
+		else if ($bal != false)
 			$init[3] = round2($bal['OutStanding']*$rate, $dec);
-		$res = getTransactions($myrow['supplier_id'], $from, $to);
+		$res = getTransactions($myrow['supplier_id'], $from, $to, $no_zeros);
 		if ($no_zeros && db_num_rows($res) == 0) continue;
 
 		$rep->fontSize += 2;
@@ -186,7 +202,6 @@ function print_supplier_balances()
 		}	
 		while ($trans=db_fetch($res))
 		{
-			if ($no_zeros && floatcmp(abs($trans['TotalAmount']), $trans['Allocated']) == 0) continue;
 			$rep->NewLine(1, 2);
 			$rep->TextCol(0, 1, $systypes_array[$trans['type']]);
 			$rep->TextCol(1, 2,	$trans['reference']);

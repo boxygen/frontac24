@@ -80,7 +80,11 @@ class BoxReports
 
 			$style = $class_id==$cur_class ? '' : "style='display:none'";
 			$st_reports .= "<table class='repclass' id='TAB_" . $class_id ."' $style cellpadding='0' cellspacing='0' border='0' width='100%'><tr><td><b>" . _("Reports For Class: ") . "&nbsp;$name</b></td></tr>\n";
-			foreach($this->ar_reports[$class_id] as $rep_id => $report)
+            $sort_report = Array();
+			foreach($this->ar_reports[$class_id] as $report)
+                $sort_report[str_replace("&", "", $report->name)] = $report;
+            ksort($sort_report);
+			foreach($sort_report as $report)
 			{
 				$acc = access_string($report->name);
 				$st_reports .= "<tr><td><a class='repopts_link'"
@@ -100,7 +104,7 @@ class BoxReports
 						. "<form method='POST' action='$action' target='_blank'>\n";
 					$st_params .= submit('Rep'.$report->id,  
 						_("Display: ") . access_string($report->name, true),
-						false, '', $SysPrefs->pdf_debug ? false : 'default process') . hidden('REP_ID', $report->id, false).'<br><br>';
+						false, '', $SysPrefs->pdf_debug ? false : 'default popup') . hidden('REP_ID', $report->id, false).'<br><br>';
 					$st_params .= $this->getOptions($report->get_controls(), $report->id);
 					$st_params .= "\n<input type=hidden name='Class' value=".$cur_class.">"
 						."\n</form></td></tr></table>\n";
@@ -277,9 +281,13 @@ class BoxReports
 				case 'GL_ACCOUNTS':
 					return gl_all_accounts_list($name);
 
+				case 'BANK_ACCOUNTS_NO_FILTER':
 				case 'BANK_ACCOUNTS':
-					return bank_accounts_list($name);
-					
+					if ($type == 'BANK_ACCOUNTS_NO_FILTER')
+						return bank_accounts_list($name, null, false, _("All"));
+					else
+						return bank_accounts_list($name);
+
 				case 'DIMENSION':
 					return dimensions_list($name, null, false, ' ', false, true, 0);
 					
@@ -305,6 +313,13 @@ class BoxReports
 					else
 						return customer_list($name);
 
+				case 'CUSTOMER_BRANCHES_NO_FILTER':
+				case 'CUSTOMER_BRANCHES':
+					if ($type == 'CUSTOMER_BRANCHES_NO_FILTER')
+						return customer_branches_list(null, $name, null, _("No Branch Filter"));
+					else
+						return customer_branches_list(null, $name);
+
 				case 'SUPPLIERS_NO_FILTER':
 				case 'SUPPLIERS':
 					if ($type == 'SUPPLIERS_NO_FILTER')
@@ -318,8 +333,9 @@ class BoxReports
 					$sql = "SELECT concat(debtor_trans.trans_no, '-', debtor_trans.type) AS TNO,
 								concat('$IV ', debtor_trans.$ref,' ', debtor.name) as IName
 						FROM ".TB_PREF."debtors_master debtor,"
-							.TB_PREF."debtor_trans debtor_trans
-						WHERE type=".ST_SALESINVOICE." AND debtor.debtor_no=debtor_trans.debtor_no
+							.TB_PREF."debtor_trans debtor_trans LEFT JOIN ".TB_PREF."voided AS vd ON debtor_trans.type=vd.type AND
+							debtor_trans.trans_no=vd.id
+						WHERE debtor_trans.type=".ST_SALESINVOICE." AND debtor.debtor_no=debtor_trans.debtor_no AND ISNULL(vd.id)
 						ORDER BY debtor_trans.trans_no DESC";
 					return combo_input($name, '', $sql, 'TNO', 'IName',array('order'=>false));
 
@@ -329,18 +345,20 @@ class BoxReports
 					$sql = "SELECT concat(debtor_trans.trans_no, '-', debtor_trans.type) AS TNO,
 								concat('$CN ', debtor_trans.$ref,' ', debtor.name) as IName
 						FROM ".TB_PREF."debtors_master debtor,"
-							.TB_PREF."debtor_trans debtor_trans
-						WHERE type=".ST_CUSTCREDIT." AND debtor.debtor_no=debtor_trans.debtor_no
+							.TB_PREF."debtor_trans debtor_trans LEFT JOIN ".TB_PREF."voided AS vd ON debtor_trans.type=vd.type AND
+							debtor_trans.trans_no=vd.id
+						WHERE debtor_trans.type=".ST_CUSTCREDIT." AND debtor.debtor_no=debtor_trans.debtor_no AND ISNULL(vd.id)
 						ORDER BY debtor_trans.trans_no DESC";
 					return combo_input($name, '', $sql, 'TNO', 'IName',array('order'=>false));
 
 				case 'DELIVERY':
 					$DN = $type_shortcuts[ST_CUSTDELIVERY];
-					$sql = "SELECT	concat(debtor_trans.trans_no, '-', debtor_trans.type) AS TNO,
+					$sql = "SELECT concat(debtor_trans.trans_no, '-', debtor_trans.type) AS TNO,
 								concat(debtor_trans.trans_no, ' $DN ', debtor.name) as IName
 						FROM ".TB_PREF."debtors_master debtor,"
-							.TB_PREF."debtor_trans debtor_trans
-						WHERE type=".ST_CUSTDELIVERY." AND debtor.debtor_no=debtor_trans.debtor_no
+							.TB_PREF."debtor_trans debtor_trans LEFT JOIN ".TB_PREF."voided AS vd ON debtor_trans.type=vd.type AND
+							debtor_trans.trans_no=vd.id
+						WHERE debtor_trans.type=".ST_CUSTDELIVERY." AND debtor.debtor_no=debtor_trans.debtor_no AND ISNULL(vd.id)
 						ORDER BY debtor_trans.trans_no DESC";
 					return combo_input($name, '', $sql, 'TNO', 'IName',array('order'=>false));
 
@@ -359,7 +377,7 @@ class BoxReports
 						FROM ".TB_PREF."debtors_master debtor,"
 							.TB_PREF."sales_orders sorder
 						WHERE debtor.debtor_no=sorder.debtor_no	AND sorder.trans_type=".ST_SALESQUOTE
-							." ORDER BY sorder.order_no DESC";
+						." ORDER BY sorder.order_no DESC";
 					return combo_input($name, '', $sql, 'order_no', 'IName',array('order'=>false));
 
 				case 'PO':
@@ -377,12 +395,14 @@ class BoxReports
 					$CN = $type_shortcuts[ST_SUPPCREDIT];
 					$ref = ($SysPrefs->print_invoice_no() == 1 ? "trans_no" : "reference");
 					$sql = "SELECT concat(trans.trans_no, '-',trans.type) AS TNO,
-								concat(trans.$ref, IF(type=".ST_BANKPAYMENT.", ' $BP ', IF(type=".ST_SUPPAYMENT.", ' $SP ', ' $CN ')), supplier.supp_name) as IName
-							FROM ".TB_PREF."suppliers supplier, "
-								.TB_PREF."supp_trans trans
-							WHERE type IN(".ST_BANKPAYMENT.",".ST_SUPPAYMENT.",".ST_SUPPCREDIT.")
-								AND supplier.supplier_id=trans.supplier_id
-							ORDER BY trans.trans_no DESC";
+								concat(trans.$ref, IF(trans.type=".ST_BANKPAYMENT.", ' $BP ', IF(trans.type=".ST_SUPPAYMENT.", ' $SP ', 
+								' $CN ')),
+								supplier.supp_name) as IName
+						FROM ".TB_PREF."suppliers supplier, "
+							.TB_PREF."supp_trans trans  LEFT JOIN ".TB_PREF."voided AS vd ON trans.type=vd.type AND trans.trans_no=vd.id
+						WHERE trans.type IN(".ST_BANKPAYMENT.",".ST_SUPPAYMENT.",".ST_SUPPCREDIT.") AND
+							supplier.supplier_id=trans.supplier_id AND ISNULL(vd.id)
+						ORDER BY trans.trans_no DESC";
 					return combo_input($name, '', $sql, 'TNO', 'IName',array('order'=>false));
 
 				case 'RECEIPT':
@@ -390,10 +410,11 @@ class BoxReports
 					$CP = $type_shortcuts[ST_CUSTPAYMENT];
 					$ref = ($SysPrefs->print_invoice_no() == 1 ? "trans_no" : "reference");
 					$sql = "SELECT concat(trans.trans_no, '-', trans.type) AS TNO,
-								concat(trans.$ref, IF(type=".ST_BANKDEPOSIT.", ' $BD ', ' $CP '), debtor.name) as IName
+								concat(trans.$ref, IF(trans.type=".ST_BANKDEPOSIT.", ' $BD ', ' $CP '), debtor.name) as IName
 						FROM ".TB_PREF."debtors_master debtor,"
-							.TB_PREF."debtor_trans trans
-						WHERE type IN(".ST_BANKDEPOSIT.",".ST_CUSTPAYMENT.",".ST_CUSTCREDIT.") AND debtor.debtor_no=trans.debtor_no
+							.TB_PREF."debtor_trans trans LEFT JOIN ".TB_PREF."voided AS vd ON trans.type=vd.type AND trans.trans_no=vd.id
+						WHERE trans.type IN(".ST_BANKDEPOSIT.",".ST_CUSTPAYMENT.",".ST_CUSTCREDIT.") AND
+							debtor.debtor_no=trans.debtor_no AND ISNULL(vd.id)
 						ORDER BY trans.trans_no DESC";
 					return combo_input($name, '', $sql, 'TNO', 'IName',array('order'=>false));
 
@@ -411,7 +432,8 @@ class BoxReports
 						FROM ".TB_PREF."stock_master item,"
 							.TB_PREF."workorders wo 
 							LEFT JOIN ".TB_PREF."voided v ON wo.id=v.id and v.type=".ST_WORKORDER."
-						WHERE item.stock_id=wo.stock_id
+						WHERE ISNULL(v.id)
+						AND item.stock_id=wo.stock_id
 						ORDER BY wo.id DESC";
 					return combo_input($name, '', $sql, 'id', 'IName',array('order'=>false));
 

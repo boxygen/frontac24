@@ -138,6 +138,16 @@ function batch_checkbox($row)
 	 .$row['branch_code']."'>\n";
 }
 
+function attach_link($row)
+{
+    global $page_nested;
+
+    $str = '';
+    if ($page_nested)
+        return '';
+    return is_closed_trans(ST_CUSTDELIVERY, $row['trans_no']) ? "--" : pager_link(_("Add an Attachment"), "/admin/attachments.php?trans_no=" . $row['trans_no'] . "&filterType=". ST_CUSTDELIVERY, ICON_ATTACH);
+}
+
 function edit_link($row)
 {
 	return $row["Outstanding"]==0 ? '' :
@@ -180,6 +190,7 @@ $cols = array(
 		submit('BatchInvoice',_("Batch"), false, _("Batch Invoicing")) 
 			=> array('insert'=>true, 'fun'=>'batch_checkbox', 'align'=>'center'),
 		array('insert'=>true, 'fun'=>'edit_link'),
+		array('insert'=>true, 'fun'=>'attach_link'),
 		array('insert'=>true, 'fun'=>'invoice_link'),
 		array('insert'=>true, 'fun'=>'prt_link')
 );

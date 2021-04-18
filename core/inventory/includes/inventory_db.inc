@@ -35,18 +35,25 @@ function get_stock_movements($stock_id, $StockLocation,	$BeforeDate, $AfterDate)
 	$before_date = date2sql($BeforeDate);
 	$after_date = date2sql($AfterDate);
   	$sql = "SELECT move.*, IF(ISNULL(supplier.supplier_id), IF(ISNULL(debtor.debtor_no), IF(ISNULL(wo.stock_id), c.memo_,sm.description), debtor.name), supplier.supp_name) name";
+  		// PO Delivery and Customer Credit Notes references should be saved in stock moves reference in 2.5
+  		/* TBD: jrb what does this do?
+  	$sql = "SELECT move.*, IF(ISNULL(supplier.supplier_id), debtor.name, supplier.supp_name) name,
+		IF(move.type=".ST_SUPPRECEIVE.", grn.reference, IF(move.type=".ST_CUSTCREDIT.", cust_trans.reference, move.reference)) reference";
+		*/
 
 	if(!$StockLocation) {
 		 $sql .= ", move.loc_code";
 	}
   	$sql.=    " FROM ".TB_PREF."stock_moves move
 				LEFT JOIN ".TB_PREF."supp_trans credit ON credit.trans_no=move.trans_no AND credit.type=move.type
-				LEFT JOIN ".TB_PREF."grn_batch grn ON grn.id=move.trans_no AND 25=move.type
+				LEFT JOIN ".TB_PREF."grn_batch grn ON grn.id=move.trans_no AND move.type=".ST_SUPPRECEIVE."
 				LEFT JOIN ".TB_PREF."suppliers supplier ON IFNULL(grn.supplier_id, credit.supplier_id)=supplier.supplier_id
 				LEFT JOIN ".TB_PREF."debtor_trans cust_trans ON cust_trans.trans_no=move.trans_no AND cust_trans.type=move.type
 				LEFT JOIN ".TB_PREF."debtors_master debtor ON cust_trans.debtor_no=debtor.debtor_no
 				LEFT JOIN ".TB_PREF."wo_manufacture wom ON wom.id=move.trans_no AND " . ST_MANURECEIVE . "=move.type
-				LEFT JOIN ".TB_PREF."workorders wo ON wo.id=move.trans_no AND " . ST_MANUISSUE . "=move.type OR wo.id= wom.workorder_id AND " . ST_MANURECEIVE . "=move.type
+				LEFT JOIN ".TB_PREF."wo_issues woi ON woi.issue_no=move.trans_no AND " . ST_MANUISSUE . "=move.type
+				LEFT JOIN ".TB_PREF."workorders wo ON wo.id=woi.workorder_id AND " . ST_MANUISSUE . "=move.type
+                    OR wo.id= wom.workorder_id AND " . ST_MANURECEIVE . "=move.type
 				LEFT JOIN ".TB_PREF."comments c ON c.id=move.trans_no AND c.type= move.type
 				LEFT JOIN ".TB_PREF."stock_master sm ON sm.stock_id=wo.stock_id
 

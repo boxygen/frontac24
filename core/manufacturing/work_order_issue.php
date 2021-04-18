@@ -115,7 +115,7 @@ if (isset($_POST['Process']) && can_process())
 	} 
 	else 
 	{
-		meta_forward($_SERVER['PHP_SELF'], "AddedID=".$_SESSION['issue_items']->order_id);
+		meta_forward_self("AddedID=".$_SESSION['issue_items']->order_id);
 	}
 
 } /*end of process credit note */
@@ -177,6 +177,12 @@ function handle_new_item()
 $id = find_submit('Delete');
 if ($id != -1)
 	handle_delete_item($id);
+
+if (isset($_POST['ZeroInv'])) {
+    $_POST['qty'] = get_qoh_on_date($_POST['stock_id']);
+    if (check_item_data())
+        handle_new_item();
+}
 
 if (isset($_POST['AddItem']))
 	handle_new_item();

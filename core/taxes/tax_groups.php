@@ -78,15 +78,15 @@ function can_delete($selected_id)
 {
 	if ($selected_id == -1)
 		return false;
-	if (key_in_foreign_table($selected_id, 'cust_branch', 'tax_group_id'))	
+	if ($count = key_in_foreign_table($selected_id, 'cust_branch', 'tax_group_id'))	
 	{
-		display_error(_("Cannot delete this tax group because customer branches been created referring to it."));
+		display_error(_("Cannot delete this tax group because $count customer branches been created referring to it."));
 		return false;
 	}
 
-	if (key_in_foreign_table($selected_id, 'suppliers', 'tax_group_id'))
+	if ($count = key_in_foreign_table($selected_id, 'suppliers', 'tax_group_id'))
 	{
-		display_error(_("Cannot delete this tax group because suppliers been created referring to it."));
+		display_error(_("Cannot delete this tax group because $count suppliers been created referring to it."));
 		return false;
 	}
 
@@ -159,6 +159,8 @@ if ($selected_id != -1)
     	$group = get_tax_group($selected_id);
 
     	$_POST['name']  = $group["name"];
+    	$_POST['no_sale']  = $group["no_sale"];
+    	$_POST['no_purchase']  = $group["no_purchase"];
 
 	}
 	hidden('selected_id', $selected_id);
@@ -166,9 +168,9 @@ if ($selected_id != -1)
 }
 text_row_ex(_("Description:"), 'name', 40);
 check_row("Exclude From Sales", 'no_sale',
-        $myrow['no_sale'], true, false, "align='center'");
+        @$_POST['no_sale'], true, false, "align='center'");
 check_row("Exclude From Purchases", 'no_purchase',
-        $myrow['no_purchase'], true, false, "align='center'");
+        @$_POST['no_purchase'], true, false, "align='center'");
 
 end_table();
 

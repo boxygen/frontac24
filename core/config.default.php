@@ -178,7 +178,7 @@ if (!isset($path_to_root) || isset($_GET['path_to_root']) || isset($_POST['path_
 	Choose Exchange Rate Provider
 	Default is ECB for backwards compatibility
 */
-	$xr_providers = array("ECB", "EXCHANGE-RATES.ORG", "CCA", "YAHOO", "GOOGLE", "BLOOMBERG");
+	$xr_providers = array("ECB", "EXCHANGE-RATES.ORG", "GOOGLE", "YAHOO", "BLOOMBERG");
 	$dflt_xr_provider = 0;
 
 /*
@@ -228,3 +228,196 @@ if (!isset($path_to_root) || isset($_GET['path_to_root']) || isset($_POST['path_
 */
 	$auto_select_box = false;
 
+/*
+    Simplified Supplier Aging
+    Aging based only supplier invoices, supplier payments and credits
+    (ignore journal entries, bank payments, deposits)
+*/
+	$simplified_supplier_aging = false;
+
+/*
+    XML enabled fields
+*/
+/*
+    $config_xml=<<<XML
+<xmlfields>
+<page>
+<title>Items</title>
+<field>long_description</field>
+<schema>
+<![CDATA[
+    {
+    onchange: function(){
+        console.log("I been changed now!")
+        xml_save(Xonomy.harvest());
+    },
+    validate: function(obj){
+        console.log("I be validating now!")
+    },
+    elements: {
+        "list": {
+            menu: [{
+                caption: "Append an <item>",
+                action: Xonomy.newElementChild,
+                actionParameter: "<item/>"
+            }],
+            displayName: "Additional Fields"
+        },
+        "item": {
+            menu: [
+                {
+                    caption: "Add @mfg",
+                    action: Xonomy.newAttribute,
+                    actionParameter: {name: "mfg"},
+                    hideIf: function(jsElement){
+                        return jsElement.attributes.length!=0;
+                    }
+                },
+                {
+                    caption: "Add @text",
+                    action: Xonomy.newAttribute,
+                    actionParameter: {name: "text", value: ""},
+                    hideIf: function(jsElement){
+                        return jsElement.attributes.length!=0;
+                    }
+                },
+                {
+                    caption: "Delete this <item>",
+                    action: Xonomy.deleteElement
+                },
+                {
+                    caption: "New <item> before this",
+                    action: Xonomy.newElementBefore,
+                    actionParameter: "<item/>"
+                },
+                {
+                    caption: "New <item> after this",
+                    action: Xonomy.newElementAfter,
+                    actionParameter: "<item/>"
+            }],
+            displayName: ">",
+            canDropTo: ["list"],
+            attributes: {
+                "mfg": {
+                    asker: Xonomy.askOpenPicklist,
+                    askerParameter: [
+                        "Apple", "Dell", "Motorola"
+                    ],
+                    menu: [{
+                        caption: "Delete this @mfg",
+                        action: Xonomy.deleteAttribute
+                    }]
+                },
+                "text": {
+                    asker: Xonomy.askLongString,
+                    menu: [{
+                        caption: "Delete this @text",
+                        action: Xonomy.deleteAttribute
+                    }]
+                }
+            }
+        }
+    }
+    };
+]]>
+</schema>
+</page>
+<page>
+<title>Customers</title>
+<field>notes</field>
+<schema>
+<![CDATA[
+    {
+    onchange: function(){
+        console.log("I been changed now!")
+        xml_save(Xonomy.harvest());
+    },
+    validate: function(obj){
+        console.log("I be validating now!")
+    },
+    elements: {
+        "list": {
+            menu: [{
+                caption: "Append an <item>",
+                action: Xonomy.newElementChild,
+                actionParameter: "<item/>"
+            }],
+            displayName: "Additional Fields"
+        },
+        "item": {
+            menu: [
+                {
+                    caption: "Add @bloodtype",
+                    action: Xonomy.newAttribute,
+                    actionParameter: {name: "bloodtype"},
+                    hideIf: function(jsElement){
+                        return jsElement.attributes.length!=0;
+                    }
+                },
+                {
+                    caption: "Add @text",
+                    action: Xonomy.newAttribute,
+                    actionParameter: {name: "text", value: ""},
+                    hideIf: function(jsElement){
+                        return jsElement.attributes.length!=0;
+                    }
+                },
+                {
+                    caption: "Add @kin",
+                    action: Xonomy.newAttribute,
+                    actionParameter: {name: "kin", value: ""},
+                    hideIf: function(jsElement){
+                        return jsElement.attributes.length!=0;
+                    }
+                },
+                {
+                    caption: "Delete this <item>",
+                    action: Xonomy.deleteElement
+                },
+                {
+                    caption: "New <item> before this",
+                    action: Xonomy.newElementBefore,
+                    actionParameter: "<item/>"
+                },
+                {
+                    caption: "New <item> after this",
+                    action: Xonomy.newElementAfter,
+                    actionParameter: "<item/>"
+            }],
+            displayName: ">",
+            canDropTo: ["list"],
+            attributes: {
+                "bloodtype": {
+                    asker: Xonomy.askOpenPicklist,
+                    askerParameter: [
+                        "A+", "A-", "AB", "O"
+                    ],
+                    menu: [{
+                        caption: "Delete this @bloodtype",
+                        action: Xonomy.deleteAttribute
+                    }]
+                },
+                "text": {
+                    asker: Xonomy.askLongString,
+                    menu: [{
+                        caption: "Delete this @text",
+                        action: Xonomy.deleteAttribute
+                    }]
+                },
+                "kin": {
+                    asker: Xonomy.askString,
+                    menu: [{
+                        caption: "Delete this @kin",
+                        action: Xonomy.deleteAttribute
+                    }]
+                }
+            }
+        }
+    }
+    };
+]]>
+</schema>
+</page>
+</xmlfields>
+XML;
+*/

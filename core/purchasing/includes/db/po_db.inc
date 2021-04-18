@@ -13,9 +13,8 @@
 
 function get_supplier_details_to_order(&$order, $supplier_id)
 {
-	$sql = "SELECT curr_code, supp_name, tax_group_id, supp.tax_included,
-			supp.credit_limit - Sum(IFNULL(IF(trans.type=".ST_SUPPCREDIT.", -1, 1) 
-				* (ov_amount + ov_gst + ov_discount),0)) as cur_credit,
+	$sql = "SELECT curr_code, supp_name, tax_group_id, supp.tax_included, dimension_id, dimension2_id,
+			supp.credit_limit - Sum((ov_amount + ov_gst + ov_discount)) as cur_credit,
 				terms.terms, terms.days_before_due, terms.day_in_following_month
 		FROM ".TB_PREF."suppliers supp
 			 LEFT JOIN ".TB_PREF."supp_trans trans ON supp.supplier_id = trans.supplier_id
@@ -36,6 +35,8 @@ function get_supplier_details_to_order(&$order, $supplier_id)
 	$_POST['supplier_id'] = $supplier_id;
 	$_POST['supplier_name'] = $myrow["supp_name"];
 	$_POST['curr_code'] = $myrow["curr_code"];
+	$_POST['dimension'] = $myrow["dimension_id"];
+	$_POST['dimension2'] = $myrow["dimension2_id"];
 
 	$order->set_supplier($supplier_id, $myrow["supp_name"], $myrow["curr_code"], 
 		$myrow["tax_group_id"], $myrow["tax_included"]);
@@ -48,7 +49,7 @@ function delete_po($po)
 	global $Refs;
 
 	begin_transaction();
-	hook_db_prevoid($po, ST_PURCHORDER);
+	hook_db_prevoid(ST_PURCHORDER, $po);
 	$sql = "DELETE FROM ".TB_PREF."purch_orders WHERE order_no=".db_escape($po);
 	db_query($sql, "The order header could not be deleted");
 
@@ -185,7 +186,7 @@ function read_po_header($order_no, &$order)
 		$order->credit = get_current_supp_credit($order->supplier_id);
 
       	$order->orig_order_date = sql2date($myrow["ord_date"]);
-      	$order->Comments = nl2br($myrow["comments"]);
+      	$order->Comments = $myrow["comments"];
       	$order->Location = $myrow["into_stock_location"];
       	$order->supp_ref = $myrow["requisition_no"];
       	$order->reference = $myrow["reference"];
@@ -207,7 +208,11 @@ function read_po_items($order_no, &$order, $open_items_only=false)
 {
 	/*now populate the line po array with the purchase order details records */
 
-	$sql = "SELECT poline.*, units
+	$sql = "SELECT poline.*, units,
+            (SELECT COUNT(*) 
+                FROM ".TB_PREF."purch_order_details poline2
+                WHERE poline.item_code = poline2.item_code
+                    AND poline.description != poline2.description) AS dup
 		FROM ".TB_PREF."purch_order_details poline
 			LEFT JOIN ".TB_PREF."stock_master item	ON poline.item_code=item.stock_id
 		WHERE order_no =".db_escape($order_no);
@@ -223,12 +228,14 @@ function read_po_items($order_no, &$order, $open_items_only=false)
     {
 		while ($myrow = db_fetch($result))
         {
-        	$data = get_purchase_data($order->supplier_id, $myrow['item_code']);
-        	if ($data !== false)
-        	{
-        		if ($data['supplier_description'] != "")
-        			$myrow['description'] = $data['supplier_description'];
-        	}		
+            if ($myrow['dup'] == 0) {
+                $data = get_purchase_data($order->supplier_id, $myrow['item_code']);
+                if ($data !== false)
+                {
+                    if ($data['supplier_description'] != "")
+                        $myrow['description'] = $data['supplier_description'];
+                }		
+            }
             if (is_null($myrow["units"]))
             {
 		       	$units = "";
@@ -294,6 +301,8 @@ function get_sql_for_po_search_completed($from, $to, $supplier_id=ALL_TEXT, $loc
 		porder.ord_date, 
 		supplier.curr_code, 
                 Sum(Round(line.unit_price*line.quantity_ordered, $dec)) AS OrderValue,
+		Sum(line.delivery_date < '". date2sql(Today()) ."'
+		AND (line.quantity_ordered > line.quantity_received)) As OverDue,
 		porder.into_stock_location,
 		chk.isopen
 		FROM ".TB_PREF."purch_orders as porder
@@ -394,4 +403,25 @@ function get_sql_for_po_search($from, $to, $supplier_id=ALL_TEXT, $location=ALL_
 	$sql .= " GROUP BY porder.order_no";
 	return $sql;
 }
+
+/*
+        This function returns the next suppliers ref
+        To work correctly, references should be numeric or end in a numeric.
+*/
+function next_supplier_ref($supplier_id) {
+$sql = "SELECT MAX(CONVERT(supp_reference, UNSIGNED)) FROM ".TB_PREF."supp_trans WHERE supplier_id="
+                .db_escape($supplier_id)
+                . " AND ov_amount!=0"; // ignore voided invoice references
+    $result = db_query($sql, "Can not find max supp_reference");
+    $row = db_fetch_row($result);
+    if (!$row[0]) return 1;
+    $offset= numeric_offset($row[0]);
+    $num=substr($row[0], $offset);
+    if (!is_numeric($num))
+        return null;
+    $num += 1;
+    return substr($row[0], 0, $offset) . $num;
+}
+
+
 

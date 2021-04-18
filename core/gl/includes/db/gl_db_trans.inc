@@ -104,87 +104,106 @@ function add_gl_balance($type, $trans_id, $date_, $amount, $person_type_id=null,
 //--------------------------------------------------------------------------------
 
 function get_gl_transactions($from_date, $to_date, $trans_no=0,
-	$account=null, $dimension=0, $dimension2=0, $filter_type=null,
+    $account=null, $dimension=0, $dimension2=0, $filter_type=null,
         $amount_min=null, $amount_max=null, $person_type=null, $person_id=null, $memo='')
 {
-	global $SysPrefs;
+    global $SysPrefs;
 
-	$from = date2sql($from_date);
-	$to = date2sql($to_date);
-
-	$sql = "SELECT gl.*, j.event_date, j.doc_date, a.gl_seq, u.user_id, st.supp_reference, gl.person_id subcode,
-			IFNULL(IFNULL(sup.supp_name, debt.name), bt.person_id) as person_name, 
-			IFNULL(gl.person_id, IFNULL(sup.supplier_id, IFNULL(debt.debtor_no, bt.person_id))) as person_id,
-            IF(gl.person_id, gl.person_type_id, IF(sup.supplier_id,".  PT_SUPPLIER . "," .  "IF(debt.debtor_no," . PT_CUSTOMER . "," . 
+    if ($account == null)
+        $sql = "SELECT gl2.*";
+    else
+        $sql = "SELECT gl1.*";
+    $sql .= ", j.event_date, j.doc_date, a.gl_seq, u.user_id, st.supp_reference,
+            IFNULL(IFNULL(sup.supp_name, debt.name), bt.person_id) as person_name, 
+            IFNULL(gl1.person_id, IFNULL(sup.supplier_id, IFNULL(debt.debtor_no, bt.person_id))) as person_id,
+            IF(gl1.person_id, gl1.person_type_id, IF(sup.supplier_id,".  PT_SUPPLIER . "," .  "IF(debt.debtor_no," . PT_CUSTOMER . "," . 
             "IF(bt.person_id != '' AND !ISNULL(bt.person_id), bt.person_type_id, -1)))) as person_type_id,
-			IFNULL(st.tran_date, IFNULL(dt.tran_date, IFNULL(bt.trans_date, IFNULL(grn.delivery_date, gl.tran_date)))) as doc_date,
-			coa.account_name, ref.reference, IF(ISNULL(c.memo_), gl.memo_, CONCAT(gl.memo_,' ',c.memo_)) AS memo
-			 FROM "
-			.TB_PREF."gl_trans gl
-			LEFT JOIN ".TB_PREF."voided v ON gl.type_no=v.id AND v.type=gl.type
+            IFNULL(st.tran_date, IFNULL(dt.tran_date, IFNULL(bt.trans_date, IFNULL(grn.delivery_date, gl1.tran_date)))) as doc_date,
+            coa.account_name, ref.reference, IF(ISNULL(c.memo_), gl1.memo_, CONCAT(gl1.memo_,' ',c.memo_)) AS memo,
+            MAX(bt.reconciled) as reconciled
+             FROM "
+            .TB_PREF."gl_trans AS gl1
+            LEFT JOIN ".TB_PREF."voided v ON gl1.type_no=v.id AND v.type=gl1.type
 
-			LEFT JOIN ".TB_PREF."supp_trans st ON gl.type_no=st.trans_no AND st.type=gl.type AND (gl.type!=".ST_JOURNAL." OR gl.person_id=st.supplier_id)
-			LEFT JOIN ".TB_PREF."grn_batch grn ON grn.id=gl.type_no AND gl.type=".ST_SUPPRECEIVE."
-			LEFT JOIN ".TB_PREF."debtor_trans dt ON gl.type_no=dt.trans_no AND dt.type=gl.type AND (gl.type!=".ST_JOURNAL." OR gl.person_id=dt.debtor_no)
+            LEFT JOIN ".TB_PREF."supp_trans st ON gl1.type_no=st.trans_no AND st.type=gl1.type AND (gl1.type!=".ST_JOURNAL." OR gl1.person_id=st.supplier_id)
+            LEFT JOIN ".TB_PREF."grn_batch grn ON grn.id=gl1.type_no AND gl1.type=".ST_SUPPRECEIVE."
+            LEFT JOIN ".TB_PREF."debtor_trans dt ON gl1.type_no=dt.trans_no AND dt.type=gl1.type AND (gl1.type!=".ST_JOURNAL." OR gl1.person_id=dt.debtor_no)
 
-			LEFT JOIN ".TB_PREF."suppliers sup ON st.supplier_id=sup.supplier_id
-			LEFT JOIN ".TB_PREF."cust_branch branch ON dt.branch_code=branch.branch_code
-			LEFT JOIN ".TB_PREF."debtors_master debt ON dt.debtor_no=debt.debtor_no
+            LEFT JOIN ".TB_PREF."suppliers sup ON st.supplier_id=sup.supplier_id
+            LEFT JOIN ".TB_PREF."cust_branch branch ON dt.branch_code=branch.branch_code
+            LEFT JOIN ".TB_PREF."debtors_master debt ON dt.debtor_no=debt.debtor_no
 
-			LEFT JOIN ".TB_PREF."bank_trans bt ON bt.type=gl.type AND bt.trans_no=gl.type_no AND bt.amount!=0
-				 AND (bt.person_id != '' AND !ISNULL(bt.person_id))
+            LEFT JOIN ".TB_PREF."bank_trans bt ON bt.type=gl1.type AND bt.trans_no=gl1.type_no AND bt.amount!=0
 
-			LEFT JOIN ".TB_PREF."journal j ON j.type=gl.type AND j.trans_no=gl.type_no
-			LEFT JOIN ".TB_PREF."audit_trail a ON a.type=gl.type AND a.trans_no=gl.type_no AND NOT ISNULL(gl_seq)
-			LEFT JOIN ".TB_PREF."users u ON a.user=u.id
-			LEFT JOIN ".TB_PREF."comments c ON c.id=gl.type_no AND c.type=gl.type
+            LEFT JOIN ".TB_PREF."journal j ON j.type=gl1.type AND j.trans_no=gl1.type_no
+            LEFT JOIN ".TB_PREF."audit_trail a ON a.type=gl1.type AND a.trans_no=gl1.type_no AND NOT ISNULL(gl_seq)
+            LEFT JOIN ".TB_PREF."users u ON a.user=u.id
+            LEFT JOIN ".TB_PREF."comments c ON c.id=gl1.type_no AND c.type=gl1.type
+            LEFT JOIN ".TB_PREF."refs ref ON ref.type=gl1.type AND ref.id=gl1.type_no";
 
-			LEFT JOIN ".TB_PREF."refs ref ON ref.type=gl.type AND ref.id=gl.type_no,"
-		.TB_PREF."chart_master coa
-		WHERE coa.account_code=gl.account
-		AND ISNULL(v.date_)
-		AND gl.tran_date >= '$from'
-		AND gl.tran_date <= '$to'
-		AND gl.amount <> 0"; 
+    if ($account == null)
+        $sql .= " JOIN ".TB_PREF."gl_trans AS gl2 ON (gl1.type=gl2.type and gl1.type_no=gl2.type_no)
+            LEFT JOIN ".TB_PREF."voided v2 ON gl2.type_no=v2.id AND v2.type=gl2.type";
 
-	if ($trans_no > 0)
-		$sql .= " AND gl.type_no LIKE ".db_escape('%'.$trans_no);;
+    $sql .= ", " .TB_PREF."chart_master coa
+        WHERE coa.account_code=gl1.account
+        AND ISNULL(v.date_)
+        AND gl1.amount <> 0"; 
 
-	if ($account != null)
-		$sql .= " AND gl.account = ".db_escape($account);
+    if ($account == null)
+        $sql .= " AND ISNULL(v2.date_)
+            AND gl2.amount <> 0"; 
 
-	if ($dimension != 0)
-		$sql .= " AND gl.dimension_id = ".($dimension<0 ? 0 : db_escape($dimension));
+    if ($from_date != null) {
+        $from = date2sql($from_date);
+        $to = date2sql($to_date);
+        $sql .= " AND gl1.tran_date >= '$from'
+            AND gl1.tran_date <= '$to'";
+    }
 
-	if ($dimension2 != 0)
-		$sql .= " AND gl.dimension2_id = ".($dimension2<0 ? 0 : db_escape($dimension2));
+    if ($trans_no > 0)
+        $sql .= " AND gl1.type_no LIKE ".db_escape('%'.$trans_no);
 
-	if ($filter_type != null)
-		$sql .= " AND gl.type IN (" . $filter_type .")";
+    if ($account != null)
+        $sql .= " AND gl1.account = ".db_escape($account);
 
-	if ($amount_min != null)
-		$sql .= " AND ABS(gl.amount) >= ABS(".db_escape($amount_min).")";
-	
-	if ($amount_max != null)
-		$sql .= " AND ABS(gl.amount) <= ABS(".db_escape($amount_max).")";
+    if ($dimension != 0)
+        $sql .= " AND gl1.dimension_id = ".($dimension<0 ? 0 : db_escape($dimension));
+
+    if ($dimension2 != 0)
+        $sql .= " AND gl1.dimension2_id = ".($dimension2<0 ? 0 : db_escape($dimension2));
+
+    if ($filter_type != null)
+        $sql .= " AND gl1.type IN (" . $filter_type .")";
+
+    if ($amount_min != null)
+        $sql .= " AND ABS(gl1.amount) >= ABS(".db_escape($amount_min).")";
+
+    if ($amount_max != null)
+        $sql .= " AND ABS(gl1.amount) <= ABS(".db_escape($amount_max).")";
 
     if ($memo)
-        $sql .= " AND (gl.memo_ LIKE ". db_escape("%$memo%") . " OR c.memo_ LIKE " . db_escape("%$memo%") . ")";
+        $sql .= " AND (gl1.memo_ LIKE ". db_escape("%$memo%") . " OR c.memo_ LIKE " . db_escape("%$memo%") . ")";
 
-	$sql .= " GROUP BY counter";
+    if ($person_type == PT_SUPPLIER || $person_type == PT_CUSTOMER) {
+            $sql .= " AND gl1.person_type_id=".db_escape($person_type); 
+            if ($person_id != '')
+                $sql .= " AND gl1.person_id=".db_escape($person_id); 
+    } else if ($person_type != '') {
+        $sql .= " AND bt.person_type_id=".db_escape($person_type); 
+        if (is_numeric($person_id))
+            $sql .= " AND bt.person_id=".db_escape($person_id); 
+        else
+            $sql .= " AND LOWER(convert((bt.person_id) using utf8)) LIKE LOWER(".db_escape("%$person_id%").")"; 
+    }
 
-    $sql .= " HAVING TRUE";
-    if ($person_type != 0)
-            $sql .= " AND person_type_id=".db_escape($person_type); 
-    if ($person_id != 0)
-            $sql .= " AND person_id=".db_escape($person_id); 
+    $sql .= " GROUP BY counter";
 
-	$sql .= " ORDER BY tran_date, counter";
-//display_notification($sql);
+    $sql .= " ORDER BY tran_date, counter";
+//display_notification(str_replace('&TB_PREF&','1_',$sql));
 
-	return db_query($sql, "The transactions for could not be retrieved");
+    return db_query($sql, "The transactions for could not be retrieved");
 }
-
 
 //--------------------------------------------------------------------------------
 
@@ -464,14 +483,16 @@ function add_trans_tax_details($trans_type, $trans_no, $tax_id, $rate, $included
 	// guess tax register if not set
 	if (!isset($reg_type))
 		$reg_type = in_array($trans_type, array(ST_SUPPINVOICE, ST_SUPPCREDIT)) ? TR_OUTPUT
-				: in_array($trans_type, array(ST_SALESINVOICE, ST_CUSTCREDIT)) ? TR_INPUT : null;
+				: (in_array($trans_type, array(ST_SALESINVOICE, ST_CUSTCREDIT)) ? TR_INPUT : null);
 
 	$sql = "INSERT INTO ".TB_PREF."trans_tax_details 
 		(trans_type, trans_no, tran_date, tax_type_id, rate, ex_rate,
 			included_in_price, net_amount, amount, memo, reg_type)
 		VALUES (".db_escape($trans_type)."," . db_escape($trans_no).",'"
-				.date2sql($tran_date)."',".db_escape($tax_id).","
-				.db_escape($rate).",".db_escape($ex_rate).",".($included ? 1:0).","
+				.date2sql($tran_date)."',"
+				.(int)($tax_id).","
+				.(float)($rate).","
+				.(float)($ex_rate).",".($included ? 1:0).","
 				.db_escape($net_amount).","
 				.db_escape($amount).",".db_escape($memo).",".db_escape($reg_type, true).")";
 
@@ -482,18 +503,15 @@ function add_trans_tax_details($trans_type, $trans_no, $tax_id, $rate, $included
 
 function get_trans_tax_details($trans_type, $trans_no)
 {
-	$sql = "SELECT tax_details.*,
-				tax_type.name AS tax_type_name,
-				tax_details.rate AS rate
-		FROM ".TB_PREF."trans_tax_details tax_details,
-			".TB_PREF."tax_types tax_type
-		WHERE 
-			trans_type = ".db_escape($trans_type)."
-		AND trans_no = ".db_escape($trans_no)."
-		AND (net_amount != 0 OR amount != 0)
-		AND tax_type.id = tax_details.tax_type_id";
+    $sql = "SELECT tax_details.*, tax_type.name AS tax_type_name, tax_details.rate AS rate
+        FROM ".TB_PREF."trans_tax_details tax_details INNER JOIN 
+        ".TB_PREF."tax_types tax_type ON tax_type.id = tax_details.tax_type_id
+        WHERE 
+                trans_type = ".db_escape($trans_type)."
+            AND trans_no = ".db_escape($trans_no)."
+            AND (net_amount != 0 OR amount != 0)";
 
-	return db_query($sql, "The transaction tax details could not be retrieved");
+    return db_query($sql, "The transaction tax details could not be retrieved");
 }
 
 //----------------------------------------------------------------------------------------
@@ -526,30 +544,32 @@ function get_tax_summary($from, $to, $also_zero_purchases=false)
 	$sql = "SELECT 
 				SUM(IF(trans_type=".ST_CUSTCREDIT.",-1,1)*
 				IF((reg_type=".TR_OUTPUT.")"
-					." || ((trans_type IN(".ST_SALESINVOICE.",".ST_CUSTCREDIT.") OR (trans_type=".ST_JOURNAL." AND reg_type=".TR_INPUT."))
+					." || ((trans_type IN(".ST_SALESINVOICE.",".ST_CUSTCREDIT.",".ST_BANKDEPOSIT."))
 					), net_amount*ex_rate,0)
 				) net_output,
 
 				SUM(IF(trans_type=".ST_CUSTCREDIT.",-1,1)*
 				IF((reg_type=".TR_OUTPUT.")"
-					." || ((trans_type IN(".ST_SALESINVOICE.",".ST_CUSTCREDIT.") OR (trans_type=".ST_JOURNAL." AND reg_type=".TR_INPUT."))
+					." || ((trans_type IN(".ST_SALESINVOICE.",".ST_CUSTCREDIT.",".ST_BANKDEPOSIT."))
 					), amount*ex_rate,0)) payable,
 
-				SUM(IF(trans_type IN(".ST_SUPPCREDIT."),-1,1)*
-				IF(reg_type=".TR_INPUT
+				SUM(IF(trans_type IN(".ST_SUPPCREDIT.",".ST_BANKPAYMENT."),-1,1)*
+				IF((reg_type=".TR_INPUT." OR trans_type IN (".ST_SUPPINVOICE.",".ST_BANKPAYMENT."))"
 					. ($also_zero_purchases ? '': " AND tax_type_id AND taxrec.rate")
 					.", net_amount*ex_rate, 0)) net_input,
 
-				SUM(IF(trans_type IN(".ST_SUPPCREDIT."),-1,1)*
-				IF(reg_type=".TR_INPUT
+				SUM(IF(trans_type IN(".ST_SUPPCREDIT.",".ST_BANKPAYMENT."),-1,1)*
+				IF((reg_type=".TR_INPUT." OR trans_type IN (".ST_SUPPINVOICE.",".ST_BANKPAYMENT."))"
 					. ($also_zero_purchases ? '': " AND tax_type_id AND taxrec.rate ") 
 					.", amount*ex_rate, 0)) collectible,
 				taxrec.rate,
 				ttype.id,
 				ttype.name
 		FROM ".TB_PREF."trans_tax_details taxrec LEFT JOIN ".TB_PREF."tax_types ttype ON taxrec.tax_type_id=ttype.id
-		WHERE taxrec.trans_type IN (".implode(',',
-			array(ST_SALESINVOICE, ST_CUSTCREDIT, ST_SUPPINVOICE, ST_SUPPCREDIT, ST_JOURNAL)).")
+		WHERE taxrec.trans_type IN (".  implode(',',
+            get_company_pref("tax_bank_payments") ?
+                array(ST_SALESINVOICE, ST_CUSTCREDIT, ST_SUPPINVOICE, ST_SUPPCREDIT, ST_JOURNAL, ST_BANKDEPOSIT, ST_BANKPAYMENT) :
+                array(ST_SALESINVOICE, ST_CUSTCREDIT, ST_SUPPINVOICE, ST_SUPPCREDIT, ST_JOURNAL)).")
 			AND taxrec.tran_date >= '$fromdate'
 			AND taxrec.tran_date <= '$todate'
 		GROUP BY ttype.id";
@@ -602,70 +622,55 @@ function clear_gl_trans($type, $trans_id, $nested=false)
 }
 
 function get_sql_for_journal_inquiry($filter, $from, $to, $ref='', $memo='', $alsoclosed=false,
-		 $user_id=null, $contractor_id=null, $dimension=null)
+         $user_id=null)
 {
+    $sql = "SELECT  IFNULL(a.gl_seq,0) as gl_seq,
+        gl.tran_date,
+        gl.type as trans_type,
+        gl.type_no as trans_no,
+        IF(MAX(gl.person_id), MAX(gl.person_id), IFNULL(st.supplier_id, IFNULL(grn.supplier_id, IFNULL(dt.debtor_no, bt.person_id)))) as person_id,
+        IF(ISNULL(st.supp_reference), '', st.supp_reference) AS supp_reference,
+        refs.reference,
+        IF(gl.type=".ST_BANKTRANSFER.",MAX(gl.amount),SUM(IF(gl.amount>0, gl.amount,0))) as amount,
+        com.memo_,
+        IF(ISNULL(u.user_id),'',u.user_id) as user_id,
+        IF(MAX(gl.person_id), MAX(gl.person_type_id), IF(!ISNULL(st.supplier_id) OR !ISNULL(grn.supplier_id),".  PT_SUPPLIER . "," .  "IF(dt.debtor_no," . PT_CUSTOMER . "," .
+        "IF(bt.person_id != '' AND !ISNULL(bt.person_id), bt.person_type_id, -1)))) as person_type_id
+        FROM ".TB_PREF."gl_trans as gl
+         LEFT JOIN ".TB_PREF."audit_trail as a ON
+            (gl.type=a.type AND gl.type_no=a.trans_no)
+         LEFT JOIN ".TB_PREF."comments as com ON
+            (gl.type=com.type AND gl.type_no=com.id)
+         LEFT JOIN ".TB_PREF."refs as refs ON
+            (gl.type=refs.type AND gl.type_no=refs.id)
+         LEFT JOIN ".TB_PREF."users as u ON
+            a.user=u.id
+         LEFT JOIN ".TB_PREF."grn_batch grn ON grn.id=gl.type_no AND gl.type=".ST_SUPPRECEIVE."
+         LEFT JOIN ".TB_PREF."bank_trans bt ON bt.type=gl.type AND bt.trans_no=gl.type_no AND bt.amount!=0
+                 AND (bt.person_id != '' AND !ISNULL(bt.person_id))
+         LEFT JOIN ".TB_PREF."debtor_trans dt ON dt.type=gl.type AND gl.type_no=dt.trans_no AND (gl.type_no != 0 or gl.person_id=dt.debtor_no) AND gl.person_type_id=2
+         LEFT JOIN ".TB_PREF."supp_trans st ON st.type=gl.type AND gl.type_no=st.trans_no AND (gl.type !=0 or gl.person_id=st.supplier_id) AND gl.person_type_id=3
+         WHERE gl.tran_date >= '" . date2sql($from) . "'
+        AND gl.tran_date <= '" . date2sql($to) . "'
+        AND gl.amount!=0";
+    if ($ref) {
+        $sql .= " AND refs.reference LIKE ". db_escape("%$ref%");
+    }
+    if ($memo) {
+        $sql .= " AND com.memo_ LIKE ". db_escape("%$memo%");
+    }
+    if ($filter != -1) {
+        $sql .= " AND gl.type=".db_escape($filter);
+    }
+    if (!$alsoclosed) {
+        $sql .= " AND gl_seq=0";
+    }
+    else
+        $sql .= " AND NOT ISNULL(a.gl_seq)";
 
-	$sql = "SELECT	IFNULL(a.gl_seq,0) as gl_seq,
-		gl.tran_date,
-		gl.type as trans_type,
-		gl.type_no as trans_no,
-		IFNULL(MAX(supp.supp_name), MAX(cust.name)) as name,
-		IF(ISNULL(st.supp_reference), '', st.supp_reference) AS supp_reference,
-		refs.reference,"
-		.($dimension ? " -SUM(IF(dim.dimension in(gl.dimension_id,gl.dimension2_id), gl.amount, 0)) as amount,":" SUM(IF(gl.amount>0, gl.amount,0)) as amount,")
-		."com.memo_,
-		IF(ISNULL(u.user_id),'',u.user_id) as user_id";
+    if ($user_id != null)
+        $sql .= " AND user_id = ".db_escape($user_id);
 
-	if ($contractor_id > 0) {
-		$sql.= ", st.supplier_id, dt.debtor_no ";
-	}
-
-	$sql.= " FROM ".TB_PREF."gl_trans as gl
-		 LEFT JOIN ".TB_PREF."audit_trail as a ON
-			(gl.type=a.type AND gl.type_no=a.trans_no)
-		 LEFT JOIN ".TB_PREF."comments as com ON
-			(gl.type=com.type AND gl.type_no=com.id)
-		 LEFT JOIN ".TB_PREF."refs as refs ON
-			(gl.type=refs.type AND gl.type_no=refs.id)
-		 LEFT JOIN ".TB_PREF."users as u ON
-			a.user=u.id
-	 	 LEFT JOIN ".TB_PREF."debtor_trans dt ON dt.type=gl.type AND gl.type_no=dt.trans_no
-	 	 LEFT JOIN ".TB_PREF."debtors_master cust ON gl.person_type_id=2 AND gl.person_id=cust.debtor_no
-	 	 LEFT JOIN ".TB_PREF."supp_trans st ON st.type=gl.type AND gl.type_no=st.trans_no
-	 	 LEFT JOIN ".TB_PREF."suppliers supp ON gl.person_type_id=3 AND gl.person_id=supp.supplier_id"
-	 	 .($dimension ? 
-		 " LEFT JOIN (SELECT type, type_no, MAX(IFNULL(dimension_id, dimension2_id)) dimension FROM ".TB_PREF."gl_trans GROUP BY type, type_no) dim 
-		 		ON gl.type=dim.type AND gl.type_no=dim.type_no" : '')
-		." WHERE gl.tran_date >= '" . date2sql($from) . "'
-		AND gl.tran_date <= '" . date2sql($to) . "'
-		AND gl.amount!=0";
-	if ($ref) {
-		$sql .= " AND refs.reference LIKE ". db_escape("%$ref%");
-	}
-	if ($memo) {
-		$sql .= " AND com.memo_ LIKE ". db_escape("%$memo%");
-	}
-	if ($filter != -1) {
-		$sql .= " AND gl.type=".db_escape($filter);
-	}
-	if (!$alsoclosed) {
-		$sql .= " AND gl_seq=0";
-	}
- 	else
- 		$sql .= " AND NOT ISNULL(a.gl_seq)";
-
-	if ($user_id != null)
-		$sql .= " AND user_id = ".db_escape($user_id);
-
-	if ($contractor_id > 0) {
-		$sql.= " AND (dt.debtor_no =".$contractor_id;
-		$sql.= " OR st.supplier_id =".$contractor_id.") ";
-	}	
-
-	if ($dimension != null)
-		$sql .= " AND dim.dimension = ".db_escape($dimension);
-
-	$sql .= " GROUP BY gl.tran_date, a.gl_seq, gl.type, gl.type_no";
-
-	return $sql;
+    $sql .= " GROUP BY gl.tran_date, a.gl_seq, gl.type, gl.type_no";
+    return $sql;
 }

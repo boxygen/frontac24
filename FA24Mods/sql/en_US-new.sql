@@ -1,6 +1,6 @@
 /*
 *********************************************************************
-FrontAccounting v2.4.3 Git 2017-10-03
+FrontAccounting v2.4.8 Git 2020-06-14
 *********************************************************************
 MySQL           - 5.1.73-1+deb6u1
 Database        - frontac
@@ -10,7 +10,7 @@ COA Digits      - 4
 Demo Data       - No
 Language        - en
 Release Date    - 2017-10-03
-Last Update     - 2018-11-20
+Last Update     - 2020-06-14
 Author          - Ap.Muthu <apmuthu@usa.net>
 Sponsor         - http://www.gnuacademy.org
 Support         - http://www.mnmserve.com
@@ -1005,7 +1005,7 @@ CREATE TABLE IF NOT EXISTS `0_sys_prefs` (
 CREATE TABLE IF NOT EXISTS `0_tag_associations` (
   `record_id` varchar(15) NOT NULL,
   `tag_id` int(11) NOT NULL,
-  PRIMARY KEY `record_id` (`record_id`,`tag_id`)
+  PRIMARY KEY (`record_id`,`tag_id`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `0_tags` (
@@ -1335,7 +1335,7 @@ INSERT INTO `0_currencies` (`currency`,`curr_abrev`,`curr_symbol`,`country`,`hun
 ,('CA Dollars','CAD','$','Canada','Cents',1,0);
 
 INSERT INTO `0_fiscal_year` (`id`,`begin`,`end`,`closed`) VALUES
- ('1', '2018-01-01', '2018-12-31', '0');
+ ('1', '2019-01-01', '2019-12-31', '0');
 
 INSERT INTO `0_groups` (`id`,`description`,`inactive`) VALUES
  ('1', 'Small', '0')
@@ -1479,6 +1479,7 @@ INSERT INTO `0_sys_prefs` (`name`,`category`,`type`,`length`,`value`) VALUES
 ,('default_workorder_required', 'glsetup.manuf', 'int', '11', '20')
 ,('deferred_income_act', 'glsetup.sales', 'varchar', '15', '2105')
 ,('depreciation_period', 'glsetup.company', 'tinyint', '1', '1')
+,('dim_on_recurrent_invoice','setup.company', 'tinyint', 1, '0')
 ,('domicile', 'setup.company', 'varchar', '55', '')
 ,('email', 'setup.company', 'varchar', '100', '')
 ,('exchange_diff_act', 'glsetup.general', 'varchar', '15', '4450')
@@ -1491,6 +1492,7 @@ INSERT INTO `0_sys_prefs` (`name`,`category`,`type`,`length`,`value`) VALUES
 ,('legal_text', 'glsetup.customer', 'tinytext', '0', '')
 ,('loc_notification', 'glsetup.inventory', 'tinyint', '1', '0')
 ,('login_tout', 'setup.company', 'smallint', '6', '600')
+,('long_description_invoice', 'setup.company', 'tinyint', '1', '0')
 ,('no_customer_list', 'setup.company', 'tinyint', '1', '0')
 ,('no_item_list', 'setup.company', 'tinyint', '1', '0')
 ,('no_supplier_list', 'setup.company', 'tinyint', '1', '0')

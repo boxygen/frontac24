@@ -32,7 +32,7 @@ else {
 }
 
 
-page($_SESSION['page_title'], false, false, "", $js);
+page($_SESSION['page_title'], @$_REQUEST['popup'], false, "", $js);
 
 include_once($path_to_root . "/includes/date_functions.inc");
 include_once($path_to_root . "/includes/ui.inc");
@@ -213,7 +213,7 @@ if (isset($_POST['addupdate']))
       $_POST['depreciation_rate'] = 0;
     }
     $move_row = get_fixed_asset_move($_POST['NewStockID'], ST_SUPPRECEIVE);
-    if (isset($_POST['depreciation_start']) && strtotime($_POST['depreciation_start']) < strtotime($move_row['tran_date'])) {
+    if ($move_row && isset($_POST['depreciation_start']) && strtotime($_POST['depreciation_start']) < strtotime($move_row['tran_date'])) {
       display_warning(_('The depracation cannot start before the fixed asset purchase date'));
     }
   }
@@ -237,7 +237,7 @@ if (isset($_POST['addupdate']))
 				$_POST['adjustment_account'], $_POST['wip_account'], 
 				$_POST['dimension_id'], $_POST['dimension2_id'],
 				check_value('no_sale'), check_value('editable'), check_value('no_purchase'),
-				get_post('depreciation_method'), input_num('depreciation_rate'), input_num('depreciation_factor'), get_post('depreciation_start'),
+				get_post('depreciation_method'), input_num('depreciation_rate'), input_num('depreciation_factor'), get_post('depreciation_start', null),
 				get_post('fa_class_id'));
 
 			update_record_status($_POST['NewStockID'], $_POST['inactive'],
@@ -258,7 +258,7 @@ if (isset($_POST['addupdate']))
 				$_POST['adjustment_account'], $_POST['wip_account'], 
 				$_POST['dimension_id'], $_POST['dimension2_id'],
 				check_value('no_sale'), check_value('editable'), check_value('no_purchase'),
-				get_post('depreciation_method'), input_num('depreciation_rate'), input_num('depreciation_factor'), get_post('depreciation_start'),
+				get_post('depreciation_method'), input_num('depreciation_rate'), input_num('depreciation_factor'), get_post('depreciation_start', null),
 				get_post('fa_class_id'));
 
 			display_notification(_("A new item has been added."));
@@ -282,11 +282,16 @@ if (get_post('clone')) {
 
 function check_usage($stock_id, $dispmsg=true)
 {
-	$msg = item_in_foreign_codes($stock_id);
-
-	if ($msg != '')	{
+    $msg = item_used($stock_id);
+    if ($msg != '') {
 		if($dispmsg) display_error($msg);
 		return false;
+    }
+
+	$msg = item_in_foreign_codes($stock_id);
+	if ($msg != '')	{
+		if($dispmsg) display_warning($msg);
+		return true;
 	}
 	return true;
 }
@@ -406,7 +411,7 @@ function item_settings(&$stock_id, $new_item)
 
 	}
 	$fresh_item = !isset($_POST['NewStockID']) || $new_item 
-		|| check_usage($_POST['stock_id'],false);
+		|| item_used($_POST['stock_id']) == "";
 
 	// show inactive item tax type in selector only if already set.
   item_tax_types_list_row(_("Item Tax Type:"), 'tax_type_id', null, !$new_item && item_type_inactive(get_post('tax_type_id')));
@@ -416,14 +421,12 @@ function item_settings(&$stock_id, $new_item)
 
 	stock_units_list_row(_('Units of Measure:'), 'units', null, $fresh_item);
 
-	check_row(_("Editable description:"), 'editable');
 
-	if (get_post('fixed_asset'))
-		hidden('no_sale', 0);
-	else
+	if (!get_post('fixed_asset')) {
+		check_row(_("Editable description:"), 'editable');
 		check_row(_("Exclude from sales:"), 'no_sale');
-
-	check_row(_("Exclude from purchases:"), 'no_purchase');
+		check_row(_("Exclude from purchases:"), 'no_purchase');
+	}
 
 	if (get_post('fixed_asset')) {
 		table_section_title(_("Depreciation"));
@@ -490,7 +493,7 @@ function item_settings(&$stock_id, $new_item)
 		gl_all_accounts_list_row(_("Depreciation cost account:"), 'cogs_account', $_POST['cogs_account']);
 		gl_all_accounts_list_row(_("Depreciation/Disposal account:"), 'adjustment_account', $_POST['adjustment_account']);
 	}
-	elseif (!is_service($_POST['mb_flag'])) 
+	elseif (!is_service(get_post('mb_flag')))
 	{
 		gl_all_accounts_list_row(_("Inventory Account:"), 'inventory_account', $_POST['inventory_account']);
 		gl_all_accounts_list_row(_("C.O.G.S. Account:"), 'cogs_account', $_POST['cogs_account']);
@@ -504,7 +507,7 @@ function item_settings(&$stock_id, $new_item)
 	}
 
 
-	if (is_manufactured($_POST['mb_flag']))
+	if (is_manufactured(get_post('mb_flag')))
 		gl_all_accounts_list_row(_("WIP Account:"), 'wip_account', $_POST['wip_account']);
 	else
 		hidden('wip_account', $_POST['wip_account']);
@@ -516,7 +519,8 @@ function item_settings(&$stock_id, $new_item)
 	// Add Image upload for New Item  - by Joe
 	$stock_img_link = "";
 	$check_remove_image = false;
-	if (isset($_POST['NewStockID']) && file_exists(company_path().'/images/'
+
+	if (@$_POST['NewStockID'] && file_exists(company_path().'/images/'
 		.item_img_name($_POST['NewStockID']).".jpg")) 
 	{
 	 // 31/08/08 - rand() call is necessary here to avoid caching problems.
@@ -667,7 +671,7 @@ end_form();
 
 //------------------------------------------------------------------------------------
 
-end_page();
+end_page(@$_REQUEST['popup']);
 
 function generateBarcode() {
 	$tmpBarcodeID = "";

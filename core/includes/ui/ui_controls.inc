@@ -22,7 +22,7 @@ function get_post($name, $dflt='')
 		$ret = array();
 		foreach($name as $key => $dflt)
 			if (!is_numeric($key)) {
-				$ret[$key] = is_float($dflt) ? input_num($key, $dflt) : get_post($key, $dflt);
+				$ret[$key] = is_numeric($dflt) ? input_num($key, $dflt) : get_post($key, $dflt);
 			} else {
 				$ret[$dflt] = get_post($dflt, null);
 			}
@@ -185,7 +185,8 @@ function meta_forward_self($params_in="", $timeout=0, $return=false)
 {
     $referer = "";
     $params = "";
-    if (!isset($_POST['referer']) || strpos($_POST['referer'], "inquiry") === false)
+    if (!isset($_POST['referer'])
+        || (strpos($_POST['referer'], "inquiry") === false && strpos($_POST['referer'], "search") === false))
         $referer=$_SERVER['PHP_SELF'];
     else {
         $referer=parse_url($_POST['referer'], PHP_URL_PATH);
@@ -198,6 +199,21 @@ function meta_forward_self($params_in="", $timeout=0, $return=false)
             $params .= "&";
     }
     meta_forward($referer, $params . $params_in, $timeout, $return);
+}
+
+function meta_forward_referer($message)
+{
+    if (!isset($_POST['referer']))
+        return;
+
+    $referer=parse_url($_POST['referer'], PHP_URL_PATH);
+    $params = parse_url(htmlspecialchars_decode($_POST['referer']), PHP_URL_QUERY);
+    $params = preg_replace('/[&]*message.*/', '', $params);
+    if (!empty($params))
+        $params .= "&";
+    $params .= "message=$message";
+
+    meta_forward($referer, $params);
 }
 
 //-----------------------------------------------------------------------------------
@@ -535,15 +551,15 @@ function tab_visible($name, $tab)
 */
 $popup_editors = array(
 	'customer' => array('/sales/manage/customers.php?debtor_no=', 
-		113,	_("Customers"), 900, 600),
+		113,	_("Customers"), 900, 550),
 	'branch' => array('/sales/manage/customer_branches.php?SelectedBranch=', 
-		114, _("Branches"), 900, 700),
+		114, _("Branches"), 900, 650),
 	'supplier' => array('/purchasing/manage/suppliers.php?supplier_id=', 
-		113, _("Suppliers"), 900, 700),
+		113, _("Suppliers"), 1150, 550),
 	'item' => array('/inventory/manage/items.php?stock_id=', 
-		115, _("Items"), 800, 600),
+		115, _("Items"), 1000, 500),
 	'fa_item' => array('/inventory/manage/items.php?FixedAsset=1&stock_id=', 
-		115, _("Items"), 800, 600)
+		115, _("Items"), 1000, 500)
 );
 /*
 	Bind editors for various selectors.

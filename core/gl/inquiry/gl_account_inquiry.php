@@ -36,7 +36,10 @@ page(_($help_context = "General Ledger Inquiry"), false, false, '', $js, false, 
 //----------------------------------------------------------------------------------------------------
 // Ajax updates
 //
-if (get_post('Show')) 
+if (get_post('Show')
+    || list_updated('account')
+    || list_updated('person_type')
+    || list_updated('person_id'))
 {
 	$Ajax->activate('trans_tbl');
 }
@@ -88,17 +91,23 @@ function gl_inquiry_controls()
 	small_amount_cells(_("Amount min:"), 'amount_min', null, " ");
 	small_amount_cells(_("Amount max:"), 'amount_max', null, " ");
 
-    if (!isset($_POST['person_type']))
-        $_POST['person_type'] = PT_MISC;
-    payment_person_types_list_cells( _("Person Type:"), 'person_type', $_POST['person_type'], true);
-    if (list_updated('person_type'))
+    if (!isset($_POST['person_type'])) 
+        $_POST['person_type'] = '';
+
+    payment_person_types_list_cells( _("Person Type:"), 'person_type', $_POST['person_type'], true, true);
+    if (list_updated('person_type')) {
+        unset($_POST['person_id']);
         $Ajax->activate('header');
+    }
 
     switch ($_POST['person_type'])
     {
-        case PT_MISC :
+        case '' :
             unset($_POST['person_id']);
             hidden('person_id');
+            break;
+        case PT_MISC :
+            text_cells_ex(_("Name:"), 'person_id', 40, 50);
             break;
         case PT_SUPPLIER :
             supplier_list_cells(_("Supplier:"), 'person_id', null, false, true, false, true);
@@ -122,25 +131,35 @@ function gl_inquiry_controls()
 
 function edit_link($row)
 {
+    global $page_nested;
 
-        $ok = true;
-        if ($row['type'] == ST_SALESINVOICE)
-        {
-                $myrow = get_customer_trans($row["type_no"], $row["type"]);
-                if ($myrow['alloc'] != 0 || get_voided_entry(ST_SALESINVOICE, $row["type_no"]) !== false)
-                        $ok = false;
-        }
-        return $ok ? trans_editor_link( $row["type"], $row["type_no"]) : '';
+    $str = '';
+    if ($page_nested)
+        return '';
+
+    switch($row['type']) {
+        case ST_SALESINVOICE:
+            $myrow = get_customer_trans($row["type_no"], $row["type"]);
+            $str = "/sales/sales_order_entry.php?NewInvoice=".$myrow['order_']."&InvoiceNo=".$row['type_no'];
+            return pager_link(_('Edit'), $str, ICON_EDIT);
+            break;
+        case ST_CUSTCREDIT:
+            $myrow = get_customer_trans($row["type_no"], $row["type"]);
+            return $myrow['order_'] ? '' :   // allow  only free hand credit notes edition
+                trans_editor_link($row['type'], $row['type_no']);
+        default:
+            return trans_editor_link($row['type'], $row['type_no']);
+    }
 }
 
 function delete_link($row)
 {
-        return pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['type_no'] . "&filterType=". $row['type'], ICON_DELETE);
+        return is_closed_trans($row['type'], $row['type_no']) ? "--" : pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['type_no'] . "&filterType=". $row['type'], ICON_DELETE);
 }
 
 function ok_link($row)
 {
-        return pager_link_absolute(_("OK"), preg_replace('/&account=.*/','',htmlspecialchars_decode($_POST['referer'])) . "&account=".$_POST['account'] . "&amount=". $row['amount'] . "&memo=".$row['memo_'], ICON_OK);
+        return pager_link_absolute(_("OK"), preg_replace('/&select=.*/','',htmlspecialchars_decode($_POST['referer'])) . "&select=".get_post('select') . "&amount=". $row['amount'] . "&memo=".$row['memo_'], ICON_OK);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -164,15 +183,18 @@ function show_results()
     	$_POST["account"], $_POST['Dimension'], $_POST['Dimension2'], null,
     	input_num('amount_min'), input_num('amount_max'), get_post('person_type'), get_post('person_id'), $_POST['Memo']);
 
-	$colspan = ($dim == 2 ? "7" : ($dim == 1 ? "6" : "5"));
+	$colspan = ($dim == 2 ? "8" : ($dim == 1 ? "7" : "6"));
 
 	if ($_POST["account"] != null)
 		display_heading($_POST["account"]. "&nbsp;&nbsp;&nbsp;".$act_name);
 
-	// Only show balances if an account is specified AND we're not filtering by amounts
-	$show_balances = $_POST["account"] != null && 
-                     input_num("amount_min") == 0 && 
-                     input_num("amount_max") == 0;
+	// Only show balances if an account is specified AND we're not filtering
+	$show_balances =
+        $_POST["account"] != null && 
+        input_num("amount_min") == 0 && 
+        input_num("amount_max") == 0 &&
+        empty($_POST["person_id"]) &&
+        empty($_POST["Memo"]);
 		
 	start_table(TABLESTYLE);
 	
@@ -213,6 +235,9 @@ function show_results()
 		$begin = add_days($begin, -1);
 	}
 
+    if ($_POST["account"] != null)
+    	$colspan--;
+
 	$bfw = 0;
 	if ($show_balances) {
 	    $bfw = get_gl_balance_from_to($begin, $_POST['TransFromDate'], $_POST["account"], $_POST['Dimension'], $_POST['Dimension2']);
@@ -227,6 +252,14 @@ function show_results()
 	$running_total = $bfw;
 	$j = 1;
 	$k = 0; //row colour counter
+
+    // TEMPORARY: this needs to be converted to db_pager to prevent ajax timeouts
+    if (db_num_rows($result) > 5000) {
+        db_seek($result, db_num_rows($result) - 5000);
+    	alt_table_row_color($k);
+        label_cell("Earlier data is not shown for performance reasons.  Adjust search criteria to reduce number of rows.", "align=center colspan=100%");
+        end_row();
+    }
 
 	while ($myrow = db_fetch($result))
 	{
@@ -272,13 +305,16 @@ function show_results()
 	}
 	//end of while loop
 
+    start_row("class='inquirybg'");
 	if ($show_balances) {
-    	start_row("class='inquirybg'");
     	label_cell("<b>" . _("Ending Balance") ." - ".$_POST['TransToDate']. "</b>", "colspan=$colspan");
         display_debit_or_credit_cells($running_total-$bfw, true);
     	amount_cell($running_total, true);
-    	end_row();
-	}
+	} else {
+        label_cell("<b>" . _("Total") ." - ".$_POST['TransToDate']. "</b>", "colspan=$colspan");
+        display_debit_or_credit_cells($running_total-$bfw, true);
+    }
+    end_row();
 
 	end_table();
 	if (db_num_rows($result) == 0)
@@ -294,6 +330,7 @@ div_start('trans_tbl');
 
 if (get_post('Show')
     || get_post('account')
+    || get_post('person_type')
     || get_post('person_id'))
     show_results();
 

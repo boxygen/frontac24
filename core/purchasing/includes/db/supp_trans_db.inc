@@ -112,6 +112,48 @@ function get_supp_trans($trans_no, $trans_type=-1, $supplier_id=null)
 
 //----------------------------------------------------------------------------------------
 
+function get_supp_payment_before($supplier_id, $date)
+{
+	$sql = "SELECT "
+	. TB_PREF . "supp_trans.trans_no,"
+	. TB_PREF . "supp_trans.type,"
+	. TB_PREF . "supp_trans.supplier_id,"
+	. TB_PREF . "supp_trans.tran_date,"
+	. TB_PREF . "supp_trans.ov_amount,"
+	. TB_PREF . "bank_trans.ref AS bank_ref,"
+	. TB_PREF . "bank_trans.amount AS bank_amount,"
+	. TB_PREF . "bank_accounts.id AS bank_id,"
+	. TB_PREF . "bank_accounts.bank_name,"
+	. TB_PREF . "bank_accounts.bank_account_name,"
+	. TB_PREF . "bank_accounts.bank_curr_code "
+	. "FROM "
+	. TB_PREF . "supp_trans,"
+	. TB_PREF . "bank_trans,"
+	. TB_PREF . "bank_accounts "
+	. "WHERE "
+	. TB_PREF . "supp_trans.supplier_id='" . $supplier_id . "' "
+	. "AND " . TB_PREF . "supp_trans.tran_date<'" . $date . "' "
+	. "AND " . TB_PREF . "supp_trans.type=" . ST_SUPPAYMENT . " "
+	. "AND " . TB_PREF . "supp_trans.trans_no=" . TB_PREF . "bank_trans.trans_no "
+	. "AND " . TB_PREF . "supp_trans.type=" . TB_PREF . "bank_trans.type "
+	. "AND " . TB_PREF . "bank_accounts.id=" . TB_PREF . "bank_trans.bank_act "
+	. "ORDER BY "
+	. TB_PREF . "supp_trans.tran_date DESC "
+	. "LIMIT 1 "
+	;
+
+	$result = db_query($sql, "Cannot retreive a previous supplier payment");
+
+	if (db_num_rows($result) == 0)
+	{
+		return false;
+	}
+
+	return db_fetch($result);
+}
+
+//----------------------------------------------------------------------------------------
+
 function exists_supp_trans($type, $type_no)
 {
 	if ($type == ST_SUPPRECEIVE)
@@ -174,11 +216,12 @@ function get_sql_for_supplier_inquiry($filter, $after_date, $to_date, $supplier_
     $date_after = date2sql($after_date);
     $date_to = date2sql($to_date);
 
+
     $sql = "SELECT trans.type, 
 		trans.trans_no,
 		trans.reference, 
 		supplier.supp_name, 
-		trans.supp_reference,
+        IF (trans.supp_reference='', c.memo_, trans.supp_reference) as supp_reference,
     	trans.tran_date, 
 		trans.due_date,
 		supplier.curr_code, 
@@ -190,7 +233,8 @@ function get_sql_for_supplier_inquiry($filter, $after_date, $to_date, $supplier_
 		trans.alloc AS Allocated,
 		((trans.type = ".ST_SUPPINVOICE." OR trans.type = ".ST_SUPPCREDIT.") AND trans.due_date < '" . date2sql(Today()) . "') AS OverDue,
     	(ABS(trans.ov_amount + trans.ov_gst  + trans.ov_discount) - trans.alloc <= ".FLOAT_COMP_DELTA.") AS Settled
-    	FROM ".TB_PREF."supp_trans as trans, ".TB_PREF."suppliers as supplier
+    	FROM ".TB_PREF."supp_trans as trans
+        LEFT JOIN ".TB_PREF."comments as c ON c.type = trans.type AND c.id = trans.trans_no, ".TB_PREF."suppliers as supplier
     	WHERE supplier.supplier_id = trans.supplier_id
 		AND trans.ov_amount != 0";	// exclude voided transactions
 
@@ -207,9 +251,13 @@ function get_sql_for_supplier_inquiry($filter, $after_date, $to_date, $supplier_
 		'' AS Allocated,
 		0 as OverDue,
     	1 as Settled
-    	FROM ".TB_PREF."grn_batch as trans, ".TB_PREF."suppliers as supplier, ".TB_PREF."purch_orders as po
-    	WHERE supplier.supplier_id = trans.supplier_id
-    	AND trans.purch_order_no = po.order_no";
+    	FROM ".TB_PREF."grn_batch as trans
+            LEFT JOIN ".TB_PREF."suppliers as supplier ON supplier.supplier_id = trans.supplier_id
+            LEFT JOIN ".TB_PREF."purch_orders as po ON trans.purch_order_no = po.order_no
+            LEFT JOIN ".TB_PREF."voided as v
+                ON trans.id=v.id AND v.type=" . ST_SUPPRECEIVE . "
+        WHERE supplier.supplier_id = trans.supplier_id
+        AND ISNULL(v.date_)"; // exclude voided transactions
 
 	if ($filter == '2')
 		$sql .= " AND ABS(trans.ov_amount + trans.ov_gst + trans.ov_discount) - trans.alloc>".FLOAT_COMP_DELTA;
@@ -217,7 +265,7 @@ function get_sql_for_supplier_inquiry($filter, $after_date, $to_date, $supplier_
 		$sql .= " AND trans.tran_date >= '$date_after'
 			AND trans.tran_date <= '$date_to'";
 		$sql2 .= " AND trans.delivery_date >= '$date_after'
-			AND trans.delivery_date <= '$date_to'";
+            AND trans.delivery_date <= '$date_to'";
 	}
 
    	if ($supplier_id != ALL_TEXT) {

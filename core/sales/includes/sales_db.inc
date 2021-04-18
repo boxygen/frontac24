@@ -182,11 +182,8 @@ function update_parent_line($doc_type, $line_id, $qty_dispatched, $auto=false)
 		{
 			$sql = "UPDATE ".TB_PREF."sales_order_details
 				SET qty_sent = qty_sent + $qty_dispatched";
-// Why is voiding a auto sales delivery any different from
-// a manual delivery?  Both should leave the sales order items alone,
-// which were manually entered by the user.
-//			if ($auto)
-//				$sql .= ", quantity = quantity + $qty_dispatched";
+			if ($auto)
+				$sql .= ", quantity = quantity + $qty_dispatched";
 			$sql .= " WHERE id=".db_escape($line_id);
 		}
 		else
@@ -234,21 +231,19 @@ function read_sales_trans($doc_type, $trans_no, &$cart)
 	} else {
 		// read header data from first document
 		$myrow = get_customer_trans($trans_no[0],$doc_type);
-		if (count($trans_no)>1)
+        $debtor_no = $myrow['debtor_no'];
+		if (count_array($trans_no)>1)
 			$cart->trans_no = get_customer_trans_version($doc_type, $trans_no);
 		else
 			$cart->trans_no = array($trans_no[0]=>$myrow["version"]);
 
 		$cart->set_sales_type($myrow["tpe"], $myrow["sales_type"], $myrow["tax_included"],0);
 
-		$cart->set_customer($myrow["debtor_no"], $myrow["DebtorName"],
+        $cart->set_customer($debtor_no, $myrow["DebtorName"],
 			$myrow["curr_code"], $myrow["discount"], $myrow["payment_terms"]);
 
-        $address = trim($myrow["br_post_address"]) != '' ? $myrow["br_post_address"]
-            : (trim($myrow["br_address"]) != '' ? $myrow["br_address"]:$myrow["address"]);
-
 		$cart->set_branch($myrow["branch_code"], $myrow["tax_group_id"],
-            $address);
+            $myrow["delivery_address"]);
 
 		$cart->reference = $myrow["reference"];
 		$cart->prepaid = $myrow["prepaid"];
@@ -285,7 +280,7 @@ function read_sales_trans($doc_type, $trans_no, &$cart)
 					@$myrow["src_id"]);
 			}
 		}
-		$cart->prepayments = get_payments_for($trans_no, $doc_type, $myrow["debtor_no"]);
+        $cart->prepayments = get_payments_for($trans_no, $doc_type, $debtor_no);
 
 	} // !newdoc
 
@@ -377,7 +372,7 @@ function get_sales_child_documents($trans_type, $trans_no)
 	if (!count_array($trans_no))
 		return false;
 	$childs = get_sales_child_numbers($trans_type, $trans_no, false);
-	if (!count($childs))
+	if (!count_array($childs))
 		return false;
 		
 	$sql = "SELECT * FROM ".TB_PREF."debtor_trans

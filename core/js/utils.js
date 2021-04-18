@@ -84,6 +84,8 @@ JsHttpRequest._request = function(trigger, form, tout, retry) {
 				set_mark(retry ? 'ajax-loader2.gif':'warning.png' );
 				if(retry)
 					JsHttpRequest._request(trigger, form, tout, retry-1);
+                else
+                    location.reload(true);
 			}, tout );
 
         JsHttpRequest.query(

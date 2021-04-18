@@ -84,6 +84,13 @@ function mbselect(elm)
 	typer.setAttribute("autocomplete","off");
 	typer.className = "typer";
 	typer.setAttribute("name",elm.getAttribute("name")+"mselect");
+	var box_name =elm.getAttribute("rel");
+    if (box_name != null) {
+        typer.setAttribute("rel",box_name);
+        var box = document.getElementsByName(elm.getAttribute('rel'))[0];
+        box.setAttribute("rel",elm.getAttribute("name")+"mselect");
+        box.value='';
+    }
 	typer.setAttribute("style","display:inline-block;width:"+iw+"px");
 	typer.style.display = 'inline-block';
 	typer.setAttribute("style","width:"+iw+"px");
@@ -251,11 +258,14 @@ function mbselect(elm)
 
 							//JsHttpRequest.request(hidden);
 							//_update_box(hidden);
-							var sname = '_' + hidden.name + '_update';
-							var update = document.getElementsByName(sname)[0];
-							if (update) {
-								JsHttpRequest.request(update);
-							}
+
+                            if (validate(hidden)) {
+                                var sname = '_' + hidden.name + '_update';
+                                var update = document.getElementsByName(sname)[0];
+                                if (update) {
+                                    JsHttpRequest.request(update);
+                                }
+                            }
 							return false;
 
 						};
@@ -290,6 +300,19 @@ function mbselect(elm)
 			}
 		}
 	}
+    typer.setvalue = function(id) {
+        for (var mm = 0; mm < list.length; mm++) {
+                if (id == list[mm].id) {
+                    selectedoption = list[mm];
+                    selectedvalue = id;
+                    list[mm].className = ' aselected';
+                    list[mm].scrollIntoView(false);
+                }
+        }
+        this.value = decodeHtml(selectedoption.innerHTML);
+		this.select();
+		this.focus();
+    }
 
 	typer.onmousedown = function (event) {
 		pop("block");
@@ -388,6 +411,17 @@ function mbselect(elm)
 			return false;
 		}
 
+		    key = event.keyCode||event.which;
+		    var box = document.getElementsByName(this.getAttribute('rel'))[0];
+//alert(box.className + ":" + box.name);
+            // F1 or ctrl-B (used for barcode reader) activates search
+		    if (box && (key == 112 || (key == 66 && event.ctrlKey)) ) {
+                this.style.display = 'none';
+                box.style.display = 'inline';
+                box.value='';
+                setFocus(box);
+			    return false;
+            }
 	}
 	typer.onkeypress = function (event) {
 		event = event || window.event;
@@ -401,11 +435,13 @@ function mbselect(elm)
 			popcl();
 			//JsHttpRequest.request(hidden );
 			//_update_box(hidden);
-			var sname = '_'+hidden.name+'_update';
-			var update = document.getElementsByName(sname)[0];
-			if(update) {
-				JsHttpRequest.request(update);
-			}
+            if (validate(hidden)) {
+                var sname = '_'+hidden.name+'_update';
+                var update = document.getElementsByName(sname)[0];
+                if(update) {
+                    JsHttpRequest.request(update);
+                }
+            }
 			return false;
 		}
 	};
@@ -638,8 +674,8 @@ function _set_combo_select(e) {
 				event.returnValue = false;
   			  	return false;
   			}
-            // spacebar or ctrl-B (used for barcode reader) activates search
-		    if (box && (key == 32 || (key == 66 && event.ctrlKey)) ) {
+            // F1 or ctrl-B (used for barcode reader) activates search
+		    if (box && (key == 112 || (key == 66 && event.ctrlKey)) ) {
                 this.style.display = 'none';
                 box.style.display = 'inline';
                 box.value='';
@@ -765,12 +801,10 @@ var inserts = {
    	  			e.onkeydown = function(ev) {
   					ev = ev||window.event;
   					key = ev.keyCode||ev.which;
- 	  				if(key == 13) {
-						if(e.className == 'searchbox') {
+ 	  				if(key == 13 && e.className != 'typer') {
+						if(e.className == 'searchbox')
                             e.onblur();
-    						return false;
-                        }
-                        e.form.submit();
+                        return false;
 					}
                     return true;
 	  			}
@@ -790,7 +824,7 @@ var inserts = {
             e.onclick = function(){
 			if (validate(e)) {
 				setTimeout(function() {	var asp = e.getAttribute('aspect');
-					if (asp && asp.indexOf('download') === -1)
+					if (asp && asp.indexOf('download') === -1 && asp.indexOf('popup') === -1)
 						set_mark((asp && ((asp.indexOf('process') !== -1) || (asp.indexOf('nonajax') !== -1))) ? 'progressbar.gif' : 'ajax-loader.gif');
 				}, 100);
 				return true;
@@ -822,11 +856,18 @@ var inserts = {
 				return false;
 			}
 	},
-    '.amount': function(e) {
-		if(e.onblur==undefined) {
+	'.amount': function(e) {
+		if (e.onblur == undefined) {
+		  e.setAttribute('_last_val', e.value);
   		  e.onblur = function() {
 			var dec = this.getAttribute("dec");
-			price_format(this.name, get_amount(this.name), dec);
+			var val = this.getAttribute('_last_val');
+			if (val != get_amount(this.name)) {
+				this.setAttribute('_last_val', get_amount(this.name));
+				price_format(this.name, get_amount(this.name), dec);
+				if (e.className.match(/\bactive\b/))
+					JsHttpRequest.request('_'+this.name+'_changed', this.form);
+			}
 		  };
 		}
 	},

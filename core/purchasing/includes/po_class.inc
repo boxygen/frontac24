@@ -52,6 +52,13 @@ class purch_order
 		/*Constructor function initialises a new purchase order object */
 		$this->line_items = array();
 		$this->lines_on_order = $this->order_no = $this->supplier_id = 0;
+        if (isset($_POST['supplier_id'])) {
+            get_supplier_details_to_order($this, $_POST['supplier_id']);
+            get_duedate_from_terms($this);
+            $this->supp_ref = next_supplier_ref($this->supplier_id);
+            $this->dimension = $_POST['dimension'];
+            $this->dimension2 = $_POST['dimension2'];
+        }
 	}
 	
 	function set_supplier($supplier_id, $supplier_name, $curr_code, $tax_group_id, $tax_included)
@@ -64,26 +71,27 @@ class purch_order
 		$this->tax_group_array = get_tax_group_items_as_array($tax_group_id);
 	}
 	
-	function add_to_order($line_no, $stock_id, $qty, $item_descr, $price, $uom, $req_del_date, $qty_inv, $qty_recd)
+	function add_to_order($line_no, $stock_id, $qty, $item_descr, $price, $uom, $req_del_date, $qty_inv, $qty_recd, $cogs=0)
 	{
 		if (isset($qty) && $qty != 0)
 		{
 			$this->line_items[$line_no] = new po_line_details($line_no, $stock_id, $item_descr, $qty, $price, $uom, 
-				$req_del_date, $qty_inv, $qty_recd);
+				$req_del_date, $qty_inv, $qty_recd, 0, $cogs);
 			$this->lines_on_order++;
+            add_or_update_purchase_data($this->supplier_id, $stock_id, $price, $item_descr);
 			return 1;
 		}
 		return 0;
 	}
 
-	function update_order_item($line_no, $qty, $price, $req_del_date, $description="")
+	function update_order_item($line_no, $qty, $price, $req_del_date, $description="", $cogs=0)
 	{
-		if ($description != "")
-			$this->line_items[$line_no]->item_description = $description;
 		$this->line_items[$line_no]->quantity = $qty;
 		$this->line_items[$line_no]->price = $price;
 		$this->line_items[$line_no]->req_del_date = $req_del_date;
 		$this->line_items[$line_no]->item_description = $description;
+		$this->line_items[$line_no]->cogs = $cogs;
+        add_or_update_purchase_data($this->supplier_id, $this->line_items[$line_no]->stock_id, $price, $description);
 	}
 
 	function remove_from_order($line_no)
@@ -207,7 +215,7 @@ class purch_order
 		return $total;
 	}
 
-        function service_price_per_line($method, $service_itm)
+        function service_price_per_line($service_itm)
         {
             $total_service = 0;
             $total = 0;
@@ -217,10 +225,10 @@ class purch_order
                 if ($ln_itm == $service_itm) {
                     $value = round($ln_itm->quantity * $ln_itm->price, $dec);
                     $total_service += $value;
-                } else {
-                    if ($method == 1)
+                } else if (!is_service(get_mb_flag($ln_itm->stock_id))) {
+                    if ($service_itm->cogs == 1)
                         $total += $ln_itm->quantity;
-                    else if ($method == 2)
+                    else if ($service_itm->cogs == 2)
                         $total++;
                     else {
                         $value = round($ln_itm->quantity * $ln_itm->price, $dec);
@@ -239,39 +247,44 @@ class purch_order
 
         // Common methods to apportion service charges are:
         // by quantity, weight, volume, line item, line total.
-        // $method: 1 Quantity
+        // $cogs: 1 Quantity
         //          2 Line Item
         //          3 Line Total
 
-        function reprice_order($method, $line_no)
+        function reprice_order()
         {
-            $service_itm=$this->line_items[$line_no];
-            $service_cost = $this->service_price_per_line($method, $service_itm);
-            if ($service_cost == 0)
-                return;
+            foreach ($this->line_items as $service_itm) {
+                if ($service_itm->cogs == 0)
+                    continue;
 
-            $total = $this->get_trans_subtotal();
-            $dec = user_price_dec();
-            foreach ($this->line_items as $ln_itm) {
-                    if ($ln_itm == $service_itm)
-                        $ln_itm->price = 0;
-                    else {
-                        if ($method == 1)
-                            $ln_itm->price += $service_cost;
-                        else if ($method == 2)
-                            $ln_itm->price += $service_cost / $ln_itm->quantity;
-                        else {
-                            $value = round($ln_itm->quantity * $ln_itm->price, $dec);
-                            $ln_itm->price += $service_cost * $value / $ln_itm->quantity;
+                $service_cost = $this->service_price_per_line($service_itm);
+                if ($service_cost == 0)
+                    return;
+
+                $total = $this->get_trans_subtotal();
+                $dec = user_price_dec();
+                foreach ($this->line_items as $ln_itm) {
+                        if ($ln_itm == $service_itm) {
+                            $ln_itm->item_description .= " ($" . $ln_itm->price . ")";
+                            $ln_itm->price = 0;
+                        } else if (!is_service(get_mb_flag($ln_itm->stock_id))) {
+                            if ($service_itm->cogs == 1)
+                                $ln_itm->price += $service_cost;
+                            else if ($service_itm->cogs == 2)
+                                $ln_itm->price += $service_cost / $ln_itm->quantity;
+                            else {
+                                $value = round($ln_itm->quantity * $ln_itm->price, $dec);
+                                $ln_itm->price += $service_cost * $value / $ln_itm->quantity;
+                            }
+                            $last_ln = $ln_itm;
                         }
-                        $last_ln = $ln_itm;
-                    }
-            }
-            $total2 = $this->get_trans_subtotal();
-            if ($total != $total2) {
-            // uh oh, rounding broke the invoice total
-            // change the price of the last item to fix it
-                $last_ln->price = ($last_ln->quantity * $last_ln->price + $total - $total2)/$last_ln->quantity;
+                }
+                $total2 = $this->get_trans_subtotal();
+                if ($total != $total2) {
+                // uh oh, rounding broke the invoice total
+                // change the price of the last item to fix it
+                    $last_ln->price = ($last_ln->quantity * $last_ln->price + $total - $total2)/$last_ln->quantity;
+                }
             }
         }
 
@@ -299,11 +312,11 @@ class po_line_details
 
 	var $standard_cost;
 	var $descr_editable;
+    var $cogs;
 
 	function __construct($line_no, $stock_item, $item_descr, $qty, $prc, $uom, $req_del_date, 
-		$qty_inv, $qty_recd, $grn_item_id=0)
+		$qty_inv, $qty_recd, $grn_item_id=0, $cogs=0)
 	{
-
 		/* Constructor function to add a new LineDetail object with passed params */
 		$this->line_no = $line_no;
 		$this->stock_id = $stock_item;
@@ -328,6 +341,7 @@ class po_line_details
 		$this->receive_qty = 0;	/*initialise these last two only */
 		$this->standard_cost =0;
 		$this->grn_item_id = $grn_item_id;
+		$this->cogs = $cogs;
 	}
 	
 	// Deprecated, use with care. If you need line value as it is calculated in invoice, use taxfree_charge_value below.

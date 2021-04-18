@@ -74,6 +74,7 @@ function display_bank_header(&$order)
     if ($_POST['person_id'] == null)
         $_POST['person_id'] = last_bank_trans('person_id', $_POST['PayType']);
 
+    $desc = _("Amount:");
     switch ($_POST['PayType'])
     {
 		case PT_MISC :
@@ -117,31 +118,22 @@ function display_bank_header(&$order)
 				$Ajax->activate('footer');
 				$Ajax->activate('totamount');
 			}
-			amount_row($qid['base_desc'].":", 'totamount', price_format($qid['base_amount']),
-				 null, "&nbsp;&nbsp;".submit('go', _("Go"), false, false, true));
+            if (!isset($_POST['totamount']))
+                $_POST['totamount'] = price_format($qid['base_amount']);
+            $desc = $qid['base_desc'].":";
 			break;	
     }
+    amount_row($desc, 'totamount', null,
+         null, "&nbsp;&nbsp;".submit('go', _("Go"), false, false, true));
 
 	table_section(3, "33%");
 
-    // For new payments that are not called from another form that sets the bank account,
-    // and if the user has not manually changed the bank account list,
-    // get the bank account from the last used transaction for the person id.
-
-    // This is useful when entering occasional transactions into FA.  Yet if the user is entering
-    // a batch of receipts (sorted by bank account), then this function is disabled
-    // after the first receipt is entered, because bank_account is then set on the url
-    // for subsequent transactions.
-
-    if (isset($_GET['bank_account'])
-        || list_updated('bank_account'))
-        $_POST['override_bank_account'] = 1;
-
-    if ($new && get_post('override_bank_account') != 1)
-            set_post_last_used_bank_account($_POST['PayType'], $_POST['person_id']);
+    if (!$order->order_id && !get_post('bank_account'))
+    {
+        set_post_last_used_bank_account($_POST['PayType'], $_POST['person_id']);
+    }
 
     bank_accounts_list_row( $payment ? _("From:") : _("Into:"), 'bank_account', null, true);
-    hidden('override_bank_account', get_post('override_bank_account'));
     if ($payment)
 		bank_balance_row($_POST['bank_account']);
 
@@ -155,7 +147,7 @@ function display_bank_header(&$order)
             $row = db_fetch($result);
             if ($row
                 && $row['reconciled'] != "") {
-                check_row(_('Reconciled:'), 'reconciled', 1, true);
+                check_row(_('Reconciled:'), 'reconciled', 1, false);
                 hidden('reconciled_date', $row['reconciled']);
             }
         }
@@ -229,8 +221,16 @@ function display_gl_items($title, &$order)
 		}
 	}
 
-	if ($id == -1)
+	if ($id == -1) {
+        if ($order->trans_type == ST_BANKDEPOSIT)
+            $total = -$order->gl_items_total();
+        else
+            $total = $order->gl_items_total();
+        if (isset($_POST['totamount'])
+            && input_num('totamount') > $total)
+            $_POST['amount'] = number_format2(input_num('totamount') - $total, user_price_dec());
 		gl_edit_item_controls($order, $dim);
+    }
 
 	if ($order->count_gl_items())
 		label_row(_("Total"), number_format2(abs($order->gl_items_total()), user_price_dec()),"colspan=" . $colspan . " align=right", "align=right",3);

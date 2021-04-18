@@ -61,7 +61,7 @@ ref_cells(_("Memo:"), 'Memo', '',null, _('Enter memo fragment or leave empty'));
 users_list_cells(_("User:"), 'userid', null, false);
 if (get_company_pref('use_dimension') && isset($_POST['dimension'])) // display dimension only, when started in dimension mode
 	dimensions_list_cells(_('Dimension:'), 'dimension', null, true, null, true);
-check_cells( _("Show closed:"), 'AlsoClosed', null);
+check_cells( _("Show closed:"), 'AlsoClosed', true);
 submit_cells('Search', _("Search"), '', '', 'default');
 end_row();
 end_table();
@@ -76,6 +76,11 @@ function systype_name($dummy, $type)
 	global $systypes_array;
 	
 	return $systypes_array[$type];
+}
+
+function person_link($row) 
+{
+    return payment_person_name_link($row["person_type_id"],$row["person_id"]);
 }
 
 function view_link($row) 
@@ -104,7 +109,7 @@ function edit_link($row)
 
 function delete_link($row)
 {
-        return pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['trans_type'], ICON_DELETE);
+    return is_closed_trans($row['trans_type'], $row['trans_no']) ? "--" : pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['trans_type'], ICON_DELETE);
 }
 
 
@@ -121,7 +126,7 @@ $cols = array(
 	_("Date") =>array('name'=>'tran_date','type'=>'date','ord'=>'desc'),
 	_("Type") => array('fun'=>'systype_name'), 
 	_("Trans #") => array('fun'=>'view_link'), 
- 	_("Counterparty") => array('ord' => ''),
+	_("Counterparty") => array('fun' => 'person_link'),
 	_("Supplier's Reference") => 'skip',
 	_("Reference"), 
 	_("Amount") => array('type'=>'amount'),

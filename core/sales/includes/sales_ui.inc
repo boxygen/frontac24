@@ -52,6 +52,6 @@ function check_edit_conflicts($cart_id, $cartname='Items')
 function check_overdue_allocation($row)
 {
     return $row['OverDue'] == 1
-        && floatcmp(abs($row["TotalAmount"]), $row["Allocated"]) != 0;
+        && floatcmp(abs($row["TotalAmount"]), abs($row["Allocated"])) != 0;
 }
 

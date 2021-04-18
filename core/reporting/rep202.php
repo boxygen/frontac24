@@ -31,6 +31,7 @@ print_aged_supplier_analysis();
 
 function get_invoices($supplier_id, $to, $all=true)
 {
+    global $SysPrefs;
 	$todate = date2sql($to);
 	$PastDueDays1 = get_company_pref('past_due_days');
 	$PastDueDays2 = 2 * $PastDueDays1;
@@ -60,6 +61,10 @@ function get_invoices($supplier_id, $to, $all=true)
 			AND ABS(trans.ov_amount + trans.ov_gst + trans.ov_discount) > ".FLOAT_COMP_DELTA;
 	if (!$all)
 		$sql .= " AND ABS(trans.ov_amount + trans.ov_gst + trans.ov_discount) - trans.alloc > ".FLOAT_COMP_DELTA;
+
+    if ($SysPrefs->simplified_supplier_aging)
+        $sql .= " AND type IN (".ST_SUPPINVOICE.",".ST_SUPPCREDIT.",".ST_SUPPAYMENT.")";
+
 	$sql .= " ORDER BY trans.tran_date";
 
 

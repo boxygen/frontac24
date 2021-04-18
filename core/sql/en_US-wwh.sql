@@ -1651,7 +1651,7 @@ CREATE TABLE IF NOT EXISTS `0_stock_master` (
   `category_id` int(11) NOT NULL default '0',
   `tax_type_id` int(11) NOT NULL default '0',
   `description` varchar(200) NOT NULL default '',
-  `long_description` tinytext NOT NULL,
+  `long_description` text NOT NULL,
   `units` varchar(20) NOT NULL default 'each',
   `mb_flag` char(1) NOT NULL default 'B',
   `sales_account` varchar(15) NOT NULL default '',
@@ -1920,6 +1920,7 @@ INSERT INTO `0_sys_prefs` VALUES ('print_invoice_no','glsetup.sales', 'tinyint',
 INSERT INTO `0_sys_prefs` VALUES ('allow_negative_prices','glsetup.inventory', 'tinyint', 1, '1');
 INSERT INTO `0_sys_prefs` VALUES ('print_item_images_on_quote','glsetup.inventory', 'tinyint', 1, '0');
 INSERT INTO `0_sys_prefs` VALUES ('suppress_tax_rates','setup.company', 'tinyint', 1, '0');
+INSERT INTO `0_sys_prefs` VALUES ('tax_bank_payments','setup.company', 'tinyint', 1, '0');
 INSERT INTO `0_sys_prefs` VALUES ('default_loss_on_asset_disposal_act', 'glsetup.items', 'varchar', '15', '5660');
 INSERT INTO `0_sys_prefs` VALUES ('depreciation_period', 'glsetup.company', 'tinyint', '1', '1');
 INSERT INTO `0_sys_prefs` VALUES ('use_manufacturing','setup.company', 'tinyint', 1, '1');

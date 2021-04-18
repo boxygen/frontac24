@@ -138,7 +138,9 @@ function issue_edit_item_controls(&$order, $line_no=-1)
 	}
 	else
 	{
-		submit_cells('AddItem', _("Add Item"), "colspan=2",
+		submit_cells('ZeroInv', _("Use Entire Stock"), "colspan=1",
+		    _('Add entire inventory of new item to document'), true);
+		submit_cells('AddItem', _("Add Item"), "colspan=1",
 		    _('Add new item to document'), true);
 	}
 
@@ -166,7 +168,7 @@ function issue_options_controls()
  	yesno_list_row(_("Type:"), 'IssueType', $_POST['IssueType'],
  		_("Return Items to Location"), _("Issue Items to Work order"));
  
-	textarea_row(_("Memo"), 'memo_', null, 50, 3);
+	textarea_row(_("Memo"), 'memo_', null, 50, 3, 40); // stock move reference is 40 max
 
 	end_table(1);
 }

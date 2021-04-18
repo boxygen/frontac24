@@ -33,6 +33,8 @@ set_page_security( @$_POST['PO']->trans_type,
 			'AddedPI' => 'SA_SUPPLIERINVOICE')
 );
 
+set_posts(array('supplier_id', 'OrderDate'));
+
 $js = '';
 if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(900, 500);
@@ -214,13 +216,8 @@ function handle_cancel_po()
 	$_POST['PO']->clear_items();
 	$_POST['PO'] = new purch_order;
 
-	display_notification(_("This purchase order has been cancelled."));
-
-	hyperlink_params($path_to_root . "/purchasing/po_entry_items.php", _("Enter a new purchase order"), "NewOrder=Yes");
-	echo "<br>";
-
-	end_page();
-	exit;
+    // edit/cancel is always called from purchase order inquiry, so return to it
+    meta_forward_self("message=" . _("This purchase order has been cancelled."));
 }
 
 //---------------------------------------------------------------------------------------------------
@@ -233,6 +230,10 @@ function check_data()
 		return false;
 	}
 
+/*
+    Allow negative GRN quantity to reverse bad GRNs when voiding
+    is not an option (closed fiscal year)
+
 	$dec = get_qty_dec($_POST['stock_id']);
 	$min = 1 / pow(10, $dec);
     if (!check_num('qty',$min))
@@ -242,13 +243,15 @@ function check_data()
 		set_focus('qty');
 	   	return false;
     }
+*/
+    if (!check_num('qty'))
+    {
+	   	display_error(_("The quantity of the order item must be numeric."));
+		set_focus('qty');
+	   	return false;
+    }
 
-    // Note: if the item is a service and the user wants to reprice
-    // the order, allow negative input, as the service item will
-    // zeroed out anyway.
-
-    if (!check_num('price', 0)
-        && !($_POST['reprice'] != 0 && is_service(get_mb_flag($_POST['stock_id']))))
+    if (!check_num('price', 0))
     {
 	   	display_error(_("The price entered must be numeric and not less than zero."));
 	   	display_error(_("HINT: To enter a supplier discount using a service item, change the 'COGS' option from 'No'. Then a negative price will discount the other items on the order."));
@@ -282,9 +285,7 @@ function handle_update_item()
 		}
 	
 		$_POST['PO']->update_order_item($_POST['line_no'], input_num('qty'), input_num('price'),
-  			@$_POST['req_del_date'], $_POST['item_description'] );
-                if ($_POST['reprice'] != 0)
-                    $_POST['PO']->reprice_order($_POST['reprice'], $_POST['line_no']);
+  			@$_POST['req_del_date'], $_POST['item_description'], $_POST['cogs'] );
 		unset_form_variables();
 	}	
     line_start_focus();
@@ -326,9 +327,7 @@ function handle_add_new_item()
 				$_POST['PO']->add_to_order ($line_no, $_POST['stock_id'], input_num('qty'), 
 					get_post('stock_id_text'), //$myrow["description"], 
 					input_num('price'), '', // $myrow["units"], (retrived in cart)
-					$_POST['PO']->trans_type == ST_PURCHORDER ? $_POST['req_del_date'] : '', 0, 0);
-                                if ($_POST['reprice'] != 0)
-                                    $_POST['PO']->reprice_order($_POST['reprice'], $line_no);
+					$_POST['PO']->trans_type == ST_PURCHORDER ? $_POST['req_del_date'] : '', 0, 0, get_post('cogs'));
 
 				unset_form_variables();
 				$_POST['stock_id']	= "";
@@ -415,7 +414,8 @@ function can_commit()
      	display_error (_("The order cannot be placed because there are no lines entered on this order."));
      	return false;
 	}
-	if (floatcmp(input_num('prep_amount'), $_POST['PO']->get_trans_total()) > 0)
+	if (input_num('prep_amount') > 0
+        && floatcmp(input_num('prep_amount'), $_POST['PO']->get_trans_total()) > 0)
 	{
 		display_error(_("Required prepayment is greater than total invoice value."));
 		set_focus('prep_amount');
@@ -434,6 +434,7 @@ function handle_commit_order()
 		copy_to_cart();
 		new_doc_date($cart->orig_order_date);
 		if ($cart->order_no == 0) { // new po/grn/invoice
+            $cart->reprice_order();
 			$trans_no = add_direct_supp_trans($cart);
 			if ($trans_no) {
 				unset($_POST['PO']);
@@ -513,7 +514,7 @@ if ($_POST['PO']->order_has_items())
 		submit_center_first('Commit', $update_txt, '', 'default');
 	else
 		submit_center_first('Commit', $process_txt, '', 'default');
-	submit_center_last('CancelOrder', $cancel_txt); 	
+	submit_center_last('CancelOrder', $cancel_txt, '', 'default'); 	
 }
 else
 	submit_center('CancelOrder', $cancel_txt, true, false, 'cancel');

@@ -176,8 +176,8 @@ function write_sales_invoice(&$invoice)
 			add_trans_tax_details(ST_SALESINVOICE, $invoice_no, $taxitem['tax_type_id'],
 				$taxitem['rate'], $invoice->tax_included, $prepaid_factor*$taxitem['Value'],
 				 $taxitem['Net'], $ex_rate, $date_, $invoice->reference, TR_OUTPUT);
-			if (isset($taxitem['sales_gl_code']))
-				$total += add_gl_trans_customer(ST_SALESINVOICE, $invoice_no, $date_, $taxitem['sales_gl_code'],$invoice->dimension_id , $invoice->dimension2_id,
+			if (isset($taxitem['sales_gl_code']) && !empty($taxitem['sales_gl_code']) && $taxitem['Value'] != 0)
+				$total += add_gl_trans_customer(ST_SALESINVOICE, $invoice_no, $date_, $taxitem['sales_gl_code'], $invoice->dimension_id, $invoice->dimension2_id,
 					(-$taxitem['Value'])*$prepaid_factor, $invoice->customer_id,
 					"A tax GL posting could not be inserted");
 		}
@@ -193,24 +193,25 @@ function write_sales_invoice(&$invoice)
 		if ($invoice->payment_terms['cash_sale'] && $invoice->pos['pos_account']) {
 			$amount = $items_total + $items_added_tax + $invoice->freight_cost 
 				+ $freight_added_tax;
+			if ($amount != 0) {
+				// to use debtors.pmt_discount on cash sale:
+				// extend invoice entry page with final amount after discount 
+				// and change line below.
+				$discount = 0; // $invoice->cash_discount*$amount;
+				$payment_info = $invoice->pos['pos_name'].' #'.$invoice_no;
+				if (!empty($invoice->payment_info))
+					$payment_info .= ' ' . $invoice->payment_info;
+				$pmtno = write_customer_payment(0, $invoice->customer_id, 
+					$invoice->Branch, $invoice->pos['pos_account'], $date_,
+					$Refs->get_next(ST_CUSTPAYMENT, null, array('customer' => $invoice->customer_id,
+						'branch' => $invoice->Branch, 'date' => $date_)),
+					$amount-$discount, $discount, $payment_info,
+					0,0,0,$invoice->dimension_id, $invoice->dimension2_id);
+				add_cust_allocation($amount, ST_CUSTPAYMENT, $pmtno, ST_SALESINVOICE, $invoice_no, $invoice->customer_id, $date_);
 
-			// to use debtors.pmt_discount on cash sale:
-			// extend invoice entry page with final amount after discount 
-			// and change line below.
-			$discount = 0; // $invoice->cash_discount*$amount;
-            $payment_info = $invoice->pos['pos_name'].' #'.$invoice_no;
-            if (!empty($invoice->payment_info))
-                $payment_info .= ' ' . $invoice->payment_info;
-			$pmtno = write_customer_payment(0, $invoice->customer_id, 
-				$invoice->Branch, $invoice->pos['pos_account'], $date_,
-				$Refs->get_next(ST_CUSTPAYMENT, null, array('customer' => $invoice->customer_id,
-					'branch' => $invoice->Branch, 'date' => $date_)),
-				$amount-$discount, $discount, $payment_info,
-                                0,0,0,$invoice->dimension_id, $invoice->dimension2_id);
-			add_cust_allocation($amount, ST_CUSTPAYMENT, $pmtno, ST_SALESINVOICE, $invoice_no, $invoice->customer_id, $date_);
-
-			update_debtor_trans_allocation(ST_SALESINVOICE, $invoice_no, $invoice->customer_id);
-			update_debtor_trans_allocation(ST_CUSTPAYMENT, $pmtno, $invoice->customer_id);
+				update_debtor_trans_allocation(ST_SALESINVOICE, $invoice_no, $invoice->customer_id);
+				update_debtor_trans_allocation(ST_CUSTPAYMENT, $pmtno, $invoice->customer_id);
+			}
 		}
 	}
 	reallocate_payments($invoice_no, ST_SALESINVOICE, $date_, $to_allocate, $allocs, $invoice->customer_id);

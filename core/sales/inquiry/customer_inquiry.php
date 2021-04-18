@@ -23,9 +23,9 @@ if ($SysPrefs->use_popup_windows)
 	$js .= get_js_open_window(900, 500);
 if (user_use_date_picker())
 	$js .= get_js_date_picker();
-$js .= get_js_history(array("customer_id", "type_group_id", "TransAfterDate", "TransToDate", "filterType"));
+$js .= get_js_history(array("customer_id", "type_group_id", "TransFromDate", "TransToDate", "filterType"));
 
-page(_($help_context = "Customer Transactions"), isset($_GET['customer_id']) && !isset($_GET['TransAfterDate']), false, "", $js);
+page(_($help_context = "Customer Transactions"), isset($_GET['customer_id']) && !isset($_GET['TransFromDate']), false, "", $js);
 
 //------------------------------------------------------------------------------------------------
 
@@ -72,9 +72,15 @@ function credit_link($row)
 
 	if ($page_nested)
 		return '';
-	return $row['type'] == ST_SALESINVOICE && $row["Outstanding"] > 0 ?
-		pager_link(_("Credit This") ,
-			"/sales/customer_credit_invoice.php?InvoiceNumber=". $row['trans_no'], ICON_CREDIT):'';
+	if ($row["Outstanding"] > 0)
+	{
+		if ($row['type'] == ST_CUSTDELIVERY)
+			return pager_link(_('Invoice'), "/sales/customer_invoice.php?DeliveryNumber=" 
+				.$row['trans_no'], ICON_DOC);
+		else if ($row['type'] == ST_SALESINVOICE)
+			return pager_link(_("Credit This") ,
+			"/sales/customer_credit_invoice.php?InvoiceNumber=". $row['trans_no'], ICON_CREDIT);
+	}	
 }
 
 function edit_link($row)
@@ -85,8 +91,25 @@ function edit_link($row)
 	if ($page_nested)
 		return '';
 
-	return $row['type'] == ST_CUSTCREDIT && $row['order_'] ? '' : 	// allow  only free hand credit notes edition
-			trans_editor_link($row['type'], $row['trans_no']);
+    switch($row['type']) {
+        case ST_SALESINVOICE:
+            $str = "/sales/sales_order_entry.php?NewInvoice=".$row['order_']."&InvoiceNo=".$row['trans_no'];
+            return pager_link(_('Edit'), $str, ICON_EDIT);
+            break;
+        default:
+            return $row['type'] == ST_CUSTCREDIT && $row['order_'] ? '' : 	// allow  only free hand credit notes edition
+                trans_editor_link($row['type'], $row['trans_no']);
+    }
+}
+
+function attach_link($row)
+{
+	global $page_nested;
+
+	$str = '';
+	if ($page_nested)
+		return '';
+    return is_closed_trans($row['type'], $row['trans_no']) ? "--" : pager_link(_("Add an Attachment"), "/admin/attachments.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'], ICON_ATTACH);
 }
 
 function delete_link($row)
@@ -96,7 +119,7 @@ function delete_link($row)
 	$str = '';
 	if ($page_nested)
 		return '';
-        return pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'], ICON_DELETE);
+    return is_closed_trans($row['type'], $row['trans_no']) ? "--" : pager_link(_("Delete"), "/admin/void_transaction.php?trans_no=" . $row['trans_no'] . "&filterType=". $row['type'], ICON_DELETE);
 }
 
 function prt_link($row)
@@ -109,15 +132,14 @@ function prt_link($row)
  		return print_document_link($row['trans_no']."-".$row['type'], _("Print"), true, $row['type'], ICON_PRINT);
 }
 
-function reissue_link($row)
+function email_link($row)
 {
-	global $page_nested;
-
-	$str = '';
-	if ($page_nested
-        || $row['type'] != ST_SALESINVOICE)
+  	if ($row['type'] == ST_CUSTPAYMENT || $row['type'] == ST_BANKDEPOSIT) 
+		return print_document_link($row['trans_no']."-".$row['type'], _("Print Receipt"), true, ST_CUSTPAYMENT, ICON_DOC);
+  	elseif ($row['type'] == ST_BANKPAYMENT) // bank payment printout not defined yet.
 		return '';
-        return pager_link(_("Reissue"), "/admin/reissue_invoice.php?trans_no=" . $row['trans_no'], ICON_REISSUE);
+ 	else
+ 		return print_document_link($row['trans_no']."-".$row['type'], _("Email"), true, $row['type'], ICON_DOC, '', '', 1);
 }
 
 //------------------------------------------------------------------------------------------------
@@ -153,7 +175,8 @@ function display_customer_summary($customer_record)
 	end_table();
 }
 
-set_posts(array("customer_id", "tax_group_id", "TransAfterDate", "TransToDate", "filterType"));
+unset($_SESSION['filterType']);
+set_posts(array("customer_id", "tax_group_id", "TransFromDate", "TransToDate", "filterType"));
 
 //------------------------------------------------------------------------------------------------
 
@@ -178,16 +201,21 @@ cust_allocations_list_cells(null, 'filterType', null, true, true);
 if ($_POST['filterType'] != '2')
 {
     $days = user_transaction_days();
-    date_cells(_("From:"), 'TransAfterDate', '', null, -abs($days));
+    date_cells(_("From:"), 'TransFromDate', '', null, -abs($days));
     if ($days >= 0) {
         date_cells(_("To:"), 'TransToDate');
     } else {
         date_cells(_("To:"), 'TransToDate', '', null, 0, 2);
     }
 }
+$_POST['show_voided'] = 1;
 check_cells(_("Zero values"), 'show_voided');
 
 submit_cells('RefreshInquiry', _("Search"),'',_('Refresh Inquiry'), 'default');
+
+end_row();
+start_row();
+label_row("", menu_link('sales/sales_order_entry.php?NewInvoice=0', 'Create Direct Invoice'));
 end_row();
 end_table();
 
@@ -212,7 +240,7 @@ if (get_post('RefreshInquiry') || list_updated('filterType'))
 $tax_group_id = get_post('tax_group_id');
 if ($tax_group_id == -1)
     $tax_group_id=null;
-$sql = get_sql_for_customer_inquiry(get_post('TransAfterDate'), get_post('TransToDate'),
+$sql = get_sql_for_customer_inquiry(get_post('TransFromDate'), get_post('TransToDate'),
 	get_post('customer_id'), $tax_group_id, get_post('filterType'), check_value('show_voided'));
 
 //------------------------------------------------------------------------------------------------
@@ -232,9 +260,10 @@ $cols = array(
 	_("Balance") => array('align'=>'right', 'type'=>'amount'),
 		array('insert'=>true, 'fun'=>'gl_view'),
 		array('insert'=>true, 'fun'=>'prt_link'),
+		array('insert'=>true, 'fun'=>'email_link'),
 		array('insert'=>true, 'fun'=>'credit_link'),
 		array('insert'=>true, 'fun'=>'edit_link'),
-		array('insert'=>true, 'fun'=>'reissue_link'),
+		array('insert'=>true, 'fun'=>'attach_link'),
 		array('insert'=>true, 'fun'=>'delete_link')
 	);
 

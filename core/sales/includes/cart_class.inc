@@ -70,11 +70,11 @@ class Cart
 	var $dimension_id;
 	var $dimension2_id;
 	var $payment;
-	var $payment_terms; // cached payment terms
+	var $payment_terms = array('cash_sale' => false, 'days_before_due' => 0); // cached payment terms
 	var $credit;
 	// prepayment mode:
-	var $prepaid;		// true for documents issued in prepayment mode
-	var $prep_amount;	// prepayment required for SO, invoiced amount for prepaiament invoice
+	var $prepaid=false;	// true for documents issued in prepayment mode
+	var $prep_amount=0;	// prepayment required for SO, invoiced amount for prepaiament invoice
 	var $sum_paid; 		// sum of all allocated prepayments both to order and related invoices
 	var $alloc; 		// sum of payments allocated to this document
 	var $prepayments = array(); // allocation records for this document
@@ -90,7 +90,7 @@ class Cart
 	//  $trans_no!=0 && $prepare_child==true => prepare for child doc entry
 	//	$prepare_child is set to ST_SALESINVOICE for prepayment invoices
 	//
-	function __construct($type, $trans_no=0, $prepare_child=false) {
+	function __construct($type, $trans_no=0, $prepare_child=false, $doc_date=null) {
 		/*Constructor function initialises a new shopping cart */
 		$this->line_items = array();
 		$this->sales_type = "";
@@ -101,7 +101,7 @@ class Cart
 		$this->dimension_id = 0;
 		$this->dimension2_id = 0;
 		$this->pos = get_sales_point(user_pos());
-		$this->read($type, $trans_no, $prepare_child);
+		$this->read($type, $trans_no, $prepare_child, $doc_date);
 		$this->cart_id = uniqid('');
 	}
 
@@ -207,7 +207,7 @@ class Cart
 	//-------------------------------------------------------------------------
 	// Reading document into cart
 	//
-	function read($type, $trans_no=0, $prepare_child=false) {
+	function read($type, $trans_no=0, $prepare_child=false, $doc_date=null) {
 
 		global $SysPrefs, $Refs;
 
@@ -231,7 +231,12 @@ class Cart
 					$this->set_parent_constraints($sodata, $trans_no[0]);
 				}
 			}
-			// convert document into child and prepare qtys for entry
+
+            // Do not create payments for editted sales orders
+            if (isset($_POST['InvoiceNo']))
+                $this->payment_terms['cash_sale'] = false;
+
+            // convert document into child and prepare qtys for entry
 			if ($prepare_child)
 				$this->prepare_child($prepare_child);
 
@@ -244,7 +249,7 @@ class Cart
 			  $this->customer_id = get_global_customer();
 			else
 			  $this->customer_id = '';
-			$this->document_date = new_doc_date();
+			$this->document_date = ($doc_date != null ? $doc_date : new_doc_date());
 			if (!is_date_in_fiscalyear($this->document_date))
 				$this->document_date = end_fiscalyear();
 			$this->reference = $Refs->get_next($this->trans_type, null, array('date' => Today(),
@@ -293,11 +298,11 @@ class Cart
 		{
 			if (!empty($SysPrefs->prefs['ref_no_auto_increase']))
 				$this->reference = $Refs->get_next($this->trans_type, null, array('date' => Today()));
-			if (!is_new_reference($this->reference, $this->trans_type))	
+			else	
 			{
 				commit_transaction();
 				return -1;
-			}	
+			}
 		}
 		if (count($this->src_docs) == 0 && ($this->trans_type == ST_SALESINVOICE || $this->trans_type == ST_CUSTDELIVERY) && !$this->is_prepaid()) {
 			// this is direct document - first add parent
@@ -355,8 +360,8 @@ class Cart
 		$this->cash_discount = $cdiscount;
 
 		if ($this->payment_terms['cash_sale']) {
-			$this->Location = $this->pos['pos_location'];
-			$this->location_name = $this->pos['location_name'];
+			$this->Location = @$this->pos['pos_location'];
+			$this->location_name = @$this->pos['location_name'];
 		}
 		$this->credit = get_current_cust_credit($customer_id);
 	}
@@ -564,7 +569,6 @@ class Cart
 		$total = $this->get_items_total() + $this->freight_cost;
 		$dec = user_price_dec();
 		if (!$this->tax_included ) {
-			$total += $this->get_shipping_tax();
 			$taxes = $this->get_taxes();
 			foreach($taxes as $tax)
 				$total += round($tax['Value'], $dec);
@@ -600,8 +604,9 @@ class Cart
 
 		foreach($qtys as $stock_id => $sum)
 		{
-			if (check_negative_stock($stock_id, -$sum['qty'], $location ? $location : $this->Location, $date ? $date : $this->document_date))
-				$low_stock[] = $stock_id;
+			$qty = check_negative_stock($stock_id, -$sum['qty'], $location ? $location : $this->Location, $date ? $date : $this->document_date);
+			if ($qty)
+				$low_stock[$stock_id] = $qty['qty'] + $qty['delta'];
 		}
 
 		return $low_stock;

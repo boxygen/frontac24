@@ -52,9 +52,9 @@ function work_order_produce($woid, $ref, $quantity, $date_, $memo, $close_wo)
 		while ($component = db_fetch($bom))
 		{
 			if (!is_service($component["mb_flag"]))
-				$m_cost += $component['unit_cost']*$component['units_issued'];
+				$m_cost += round2($component['unit_cost']*$component['units_issued'], user_price_dec());
 			else
-				$l_cost += $component['unit_cost']*$component['units_issued'];
+				$l_cost += round2($component['unit_cost']*$component['units_issued'], user_price_dec());
 		}
 
 		// add additional material issues
@@ -62,9 +62,9 @@ function work_order_produce($woid, $ref, $quantity, $date_, $memo, $close_wo)
 		while ($issue = db_fetch($issues))
 		{
 			if (!is_service($issue["mb_flag"]))
-				$m_cost += $issue['unit_cost']*$issue['qty_issued'];
+				$m_cost += round2($issue['unit_cost']*$issue['qty_issued'], user_price_dec());
 			else
-				$l_cost += $issue['unit_cost']*$issue['qty_issued'];
+				$l_cost += round2($issue['unit_cost']*$issue['qty_issued'], user_price_dec());
 		}
 
 		// and additional costs

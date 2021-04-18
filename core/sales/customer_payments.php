@@ -54,8 +54,7 @@ if (!isset($_POST['bank_account'])) { // first page call
 	if (isset($_GET['SInvoice'])) {
 		//  get date and supplier
 		$inv = get_customer_trans($_GET['SInvoice'], ST_SALESINVOICE);
-		$dflt_act = get_default_bank_account($inv['curr_code']);
-		$_POST['bank_account'] = $dflt_act['id'];
+		set_post_last_used_bank_account(PT_CUSTOMER, $_POST['customer_id']);
 		if ($inv) {
 			$_POST['customer_id'] = $inv['debtor_no'];
 			$_SESSION['alloc']->set_person($inv['debtor_no'], PT_CUSTOMER);
@@ -83,6 +82,7 @@ if (list_updated('BranchID')) {
 	$br = get_branch(get_post('BranchID'));
 	$_POST['customer_id'] = $br['debtor_no'];
 	$_SESSION['alloc']->person_id = $br['debtor_no'];
+	$_SESSION['alloc']->default_branch = null;
 	$Ajax->activate('customer_id');
 }
 
@@ -90,8 +90,7 @@ if (!isset($_POST['customer_id'])) {
 	$_POST['customer_id'] = get_global_customer(false);
 	$_SESSION['alloc']->set_person($_POST['customer_id'], PT_CUSTOMER);
 	$_SESSION['alloc']->read();
-	$dflt_act = get_default_bank_account($_SESSION['alloc']->person_curr);
-	$_POST['bank_account'] = $dflt_act['id'];
+    set_post_last_used_bank_account(PT_CUSTOMER, $_POST['customer_id']);
 }
 if (!isset($_POST['DateBanked'])) {
 	$_POST['DateBanked'] = new_doc_date();
@@ -107,6 +106,7 @@ if (isset($_GET['AddedID'])) {
 	display_notification_centered(_("The customer payment has been successfully entered."));
 
 	submenu_print(_("&Print This Receipt"), ST_CUSTPAYMENT, $payment_no."-".ST_CUSTPAYMENT, 'prtopt');
+	submenu_print(_("&Email This Receipt"), ST_CUSTPAYMENT, $payment_no."-".ST_CUSTPAYMENT, null, 1);
 
 	submenu_view(_("&View this Customer Payment"), ST_CUSTPAYMENT, $payment_no);
 
@@ -173,8 +173,8 @@ function can_process()
 		return false;
 	}
 
-	if (!check_num('amount', 0)) {
-		display_error(_("The entered amount is invalid or negative and cannot be processed."));
+	if (!check_num('amount')) {
+		display_error(_("The entered amount is invalid and cannot be processed."));
 		set_focus('amount');
 		return false;
 	}
@@ -204,7 +204,7 @@ function can_process()
 		return false;
 	}
 
-	if (input_num('amount') <= 0) {
+	if (input_num('amount') == 0) {
 		display_error(_("The balance of the amount and discount is zero or negative. Please enter valid amounts."));
 		set_focus('discount');
 		return false;
@@ -247,7 +247,17 @@ if (get_post('AddPaymentItem') && can_process()) {
 		$_POST['bank_account'], $_POST['DateBanked'], $_POST['ref'],
                 input_num('amount'), input_num('discount'), $_POST['memo_'], 0, input_num('charge'), input_num('bank_amount', input_num('amount')), $_POST['dimension_id'], $_POST['dimension2_id']);
 
+    // retain the reconciled status if desired by user
+    if (!$new_pmt && isset($_POST['reconciled'])
+        && $_POST['reconciled'] == 1) {
+        $sql = "UPDATE ".TB_PREF."bank_trans SET reconciled=".db_escape($_POST['reconciled_date'])
+            ." WHERE type=" . ST_CUSTPAYMENT . " AND trans_no=".db_escape($_SESSION['alloc']->trans_no);
+
+        db_query($sql, "Can't change reconciliation status");
+    }
+
 	$_SESSION['alloc']->trans_no = $payment_no;
+	$_SESSION['alloc']->date_ = $_POST['DateBanked'];
 	$_SESSION['alloc']->write();
 
 	unset($_SESSION['alloc']);
@@ -293,6 +303,7 @@ if (isset($_GET['trans_no']) && $_GET['trans_no'] > 0 )
 	$_POST["bank_amount"] = price_format($myrow['bank_amount']+$charge);
 	$_POST["discount"] = price_format($myrow['ov_discount']);
 	$_POST["memo_"] = get_comments_string(ST_CUSTPAYMENT,$_POST['trans_no']);
+    $_POST["reconciled"] = $myrow["reconciled"];
 
 	//Prepare allocation cart 
 	if (isset($_POST['trans_no']) && $_POST['trans_no'] > 0 )
@@ -322,7 +333,7 @@ else {
 }
 
 if (db_customer_has_branches($_POST['customer_id'])) {
-	customer_branches_list_row(_("Branch:"), $_POST['customer_id'], 'BranchID', null, false, true, true);
+	customer_branches_list_row(_("Branch:"), $_POST['customer_id'], 'BranchID', $_SESSION['alloc']->default_branch, false, true, true);
 } else {
 	hidden('BranchID', ANY_NUMERIC);
 }
@@ -336,7 +347,7 @@ if (list_updated('customer_id') || ($new && list_updated('bank_account'))) {
 	$Ajax->activate('_page_body');
 }
 
-bank_accounts_list_row(_("Into Bank Account:"), 'bank_account', null, true);
+bank_accounts_list_row(_("Into Bank Account:"), 'bank_account', null, db_num_rows(get_currencies()) > 1);
 
 read_customer_data();
 
@@ -380,6 +391,14 @@ if ($dim > 1)
         null, true, ' ', false, 2, false);
 else
     hidden('dimension2_id', 0);
+
+    // Query the user to retain the reconciled status
+    if (!$new
+        && !empty($_POST['reconciled'])) {
+        check_row(_('Reconciled:'), 'reconciled', 1, );
+        hidden('reconciled_date', $_POST['reconciled']);
+    }
+
 
 
 end_outer_table(1);

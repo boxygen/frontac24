@@ -89,9 +89,10 @@ $opts = array(		// default options
 	}
 	$disabled = $opts['disabled'] ? "disabled" : '';
 	$multi = $opts['multi'];
-    if(@$SysPrefs->auto_select_box && !$multi
-        && ($search_box == "" || $search_submit == ""))
-            $class .=' mbselect';
+    $mbclass = $class;
+    if(@$SysPrefs->auto_select_box && !$multi)
+        // && ($search_box == "" || $search_submit == ""))
+            $mbclass .=' mbselect';
 	
 	if(!count($opts['search'])) {
 		$opts['search'] = array($by_id ? $valfield : $namefield);
@@ -113,7 +114,8 @@ $opts = array(		// default options
 		$selected_id = array((string)$selected_id); // code is generalized for multiple selection support
 
 	$txt = get_post($search_box);
-//display_notification($search_box . ":" . $txt);
+
+// display_notification($search_box . ":" . $txt . ":" . $opts['search_submit']);
 	$rel = '';
 	$limit = '';
 	if (isset($_POST['_'.$name.'_update'])) { // select list or search box change
@@ -151,13 +153,13 @@ $opts = array(		// default options
 			}
 			else
 */
-				if ($txt != '*') {
+				if ($txt != '*' && $txt != '') {
 					foreach($opts['search'] as $i=> $s)
 						$opts['search'][$i] = $s . " LIKE "
 							.db_escape(($class=='combo3' ? '' : '%').$txt.'%')
                             . " OR " . db_escape($txt) . " REGEXP $s ";
  ;
-					$opts['where'][] = '('. implode($opts['search'], ' OR ') . ')';
+					$opts['where'][] = '('. implode(' OR ', $opts['search']) . ')';
 				}
 		}
 	}
@@ -165,7 +167,7 @@ $opts = array(		// default options
 	// sql completion
 	if (count($opts['where'])) {
 		$where = strpos($sql, 'WHERE')==false ? ' WHERE ':' AND ';
-		$where .= '('. implode($opts['where'], ' AND ') . ')';
+		$where .= '('. implode(' AND ', $opts['where']) . ')';
 		$group_pos = strpos($sql, 'GROUP BY');
 		if ($group_pos) {
 			$group = substr($sql, $group_pos);
@@ -193,9 +195,6 @@ $opts = array(		// default options
 
 //display_notification($search_box . ":" . get_post($search_box));
 
- 		 	if (get_post($search_box) && $txt != '')
-                $selected_id[0] = $txt;
-//display_notification(print_r($selected_id, true));
 
 	if (($type === "customer" || $type === "supplier") && !empty($SysPrefs->prefs['shortname_name_in_list']))
 		$pname = true;
@@ -205,11 +204,15 @@ $opts = array(		// default options
 			$descr = $opts['format']==null ?  $contact_row[1] :
 				call_user_func($opts['format'], $contact_row, $pname);
 			$sel = '';
-            if (in_array((string)$value, $selected_id, true)) {
+            if (($found === false && get_post($search_box) && $txt != '')
+                || in_array((string)$value, $selected_id, true)) {
 				$sel = 'selected';
 				$found = $value;
+                $selected_id = array($found);
 				$edit = $opts['editable'] && $contact_row['editable'] 
-//					&& (@$_POST[$search_box] == $value)
+//TBD: mbselect needs to put selected item in $search box
+// in order for editable fields to work
+					&& (@$_POST[$search_box] == $value)
 					? $contact_row[1] : false; // get non-formatted description
 
 				if ($edit)
@@ -259,12 +262,12 @@ $opts = array(		// default options
         if ($SysPrefs->use_popup_search)
 		$selector = "<select id='$name' autocomplete='off' ".($multi ? "multiple" : '')
 		. ($opts['height']!==false ? ' size="'.$opts['height'].'"' : '')
-		. "$disabled name='$name".($multi ? '[]':'')."' class='$class' title='"
+		. "$disabled name='$name".($multi ? '[]':'')."' class='$mbclass' title='"
 		. $opts['sel_hint']."' $rel>".$selector."</select>\n";
         else
 		$selector = "<select autocomplete='off' ".($multi ? "multiple" : '')
 		. ($opts['height']!==false ? ' size="'.$opts['height'].'"' : '')
-		. "$disabled name='$name".($multi ? '[]':'')."' class='$class' title='"
+		. "$disabled name='$name".($multi ? '[]':'')."' class='$mbclass' title='"
 		. $opts['sel_hint']."' $rel>".$selector."</select>\n";
 
     if (isset($_POST[$search_box])
@@ -288,12 +291,21 @@ $opts = array(		// default options
 	// span for select list/input field update
 	$selector = "<span id='_{$name}_sel'>".$selector."</span>\n";
 
+	// if selectable or editable list is used - add select button
+	if ($select_submit != false /* || $search_button */) {
+
+	// button class selects form reload/ajax selector update
+		$selector .= sprintf(SELECT_BUTTON, $disabled, user_theme(),
+			(fallback_mode() ? '' : 'display:none;'),
+			 '_'.$name.'_update')."\n";
+	}
+
 // ------ make combo ----------
 	$edit_entry = '';
 	if ($search_box != false) {
 		$edit_entry = "<input $disabled type='text' name='$search_box' id='$search_box' size='".
 			$opts['size']."' maxlength='".$opts['max'].
-			"' value='$txt' class='$class' rel='$name' autocomplete='off' title='"
+			"' class='$class' rel='$name' autocomplete='off' title='"
 			.$opts['box_hint']."'"
 			.(!fallback_mode() && !$by_id ? " style=display:none;":'')
 			.">\n";
@@ -355,7 +367,7 @@ $opts = array(		// default options
         			$img_title = _("Search suppliers");
         			break;
       			case "account":
-      			case "account2";
+      			case "account2":
       				$skip = strtolower($type) == "account" ? false : true;
         			$link = $path_to_root . "/gl/inquiry/accounts_list.php?popup=1&skip=".$skip."&client_id=" . $id;
         			$img_title = _("Search GL accounts");
@@ -371,17 +383,6 @@ $opts = array(		// default options
   		}
 	}
 
-	// if selectable or editable list is used - add select button
-	if ($select_submit != false
-        || (strpos($class, "mbselect") !== false && $link != "")
-        /* || $search_button */) {
-
-	// button class selects form reload/ajax selector update
-		$selector .= sprintf(SELECT_BUTTON, $disabled, user_theme(),
-			(fallback_mode() ? '' : 'display:none;'),
-			 '_'.$name.'_update')."\n";
-	}
-
 	if ($opts['editlink'])
 		$selector .= ' '.$opts['editlink'];
 
@@ -391,7 +392,7 @@ $opts = array(		// default options
             $str = "<td></td><td>$edit_entry$selector$img</td>";
         else
 */
-            $str = ($edit_entry!='' ? "<td>$edit_entry</td>" : '')."<td>$selector$img</td>";
+		$str = ($edit_entry!='' ? "<td>$edit_entry</td>" : '')."<td nowrap>$selector$img</td>";
 	} else
 		$str = $edit_entry.$selector.$img;
 	return $str;
@@ -481,7 +482,6 @@ $opts = array(		// default options
 		$selected_id = array($first_id);
 	}
 	$_POST[$name] = $multi ? $selected_id : $selected_id[0];
-    if(@$SysPrefs->auto_select_box&&!$multi)$class ='combo mbselect';else $class='combo';
 
 	$selector = "<select autocomplete='off' ".($multi  ? "multiple" : '')
 		. ($opts['height']!==false ? ' size="'.$opts['height'].'"' : '')
@@ -657,14 +657,19 @@ function customer_list_row($label, $name, $selected_id=null, $all_option = false
 function customer_branches_list($customer_id, $name, $selected_id=null,
 	$spec_option = true, $enabled=true, $submit_on_change=false, $editkey = false)
 {
-
-	$sql = "SELECT branch_code, branch_ref FROM ".TB_PREF."cust_branch
-		WHERE debtor_no=" . db_escape($customer_id)." ";
+    if ($customer_id != null)
+        $sql = "SELECT branch_code, branch_ref FROM ".TB_PREF."cust_branch cb
+            WHERE debtor_no=" . db_escape($customer_id)." ";
+    else
+        $sql = "SELECT branch_code, IF(debtor_ref = branch_ref, branch_ref, CONCAT(debtor_ref, ' ', branch_ref)) AS branch_ref
+            FROM ".TB_PREF."cust_branch cb
+            LEFT JOIN ".TB_PREF."debtors_master d ON d.debtor_no = cb.debtor_no
+            WHERE cb.branch_ref != ''";
 
 	if ($editkey)
 		set_editor('branch', $name, $editkey);
 
-	$where = $enabled ? array("inactive = 0") : array();
+	$where = $enabled ? array("cb.inactive = 0") : array();
 	$ret = combo_input($name, $selected_id, $sql, 'branch_code', 'branch_ref',
 	array(
 		'where' => $where,
@@ -852,7 +857,10 @@ function stock_items_list($name, $selected_id=null, $all_option=false,
 {
     global $SysPrefs;
 	$sql = "SELECT s.stock_id, s.description, c.description, s.inactive, s.editable
-			FROM ".TB_PREF."stock_master s LEFT JOIN ".TB_PREF."stock_category c ON s.category_id=c.category_id LEFT JOIN ".TB_PREF."item_codes i ON is_foreign AND s.stock_id=i.stock_id WHERE";
+			FROM ".TB_PREF."stock_master s LEFT JOIN ".TB_PREF."stock_category c ON s.category_id=c.category_id";
+    if (!@$SysPrefs->sort_item_list_desc)
+        $sql .= " LEFT JOIN ".TB_PREF."item_codes i ON is_foreign AND s.stock_id=i.stock_id ";
+    $sql .= " WHERE";
 
 	if (isset($opts['fixed_asset']) && $opts['fixed_asset'])
 		$sql .= " mb_flag='F'";
@@ -935,7 +943,7 @@ echo "</td>";
 // Select item via foreign code.
 //
 function sales_items_list($name, $selected_id=null, $all_option=false, 
-	$submit_on_change=false, $type='', $opts=array())
+	$submit_on_change=false, $type='', $opts=array(), $sales_type=null)
 {
     global $SysPrefs;
 
@@ -943,21 +951,30 @@ function sales_items_list($name, $selected_id=null, $all_option=false,
 	$sql = "SELECT i.item_code, i.description, c.description, count(*)>1 as kit,
 			 i.inactive, if(count(*)>1, '0', s.editable) as editable
 			FROM
-			".TB_PREF."stock_master s,
-			".TB_PREF."item_codes i
+			".TB_PREF."stock_master s ";
+
+    if ($sales_type != null) {
+        $sql .= "LEFT JOIN ".TB_PREF."prices p
+            ON p.stock_id=s.stock_id ";
+    }
+
+    $sql .= ", ".TB_PREF."item_codes i
 			LEFT JOIN
 			".TB_PREF."stock_category c
-			ON i.category_id=c.category_id
-			WHERE i.stock_id=s.stock_id
-      AND mb_flag != 'F'";
-
-	
-    $sql .=	" AND !i.is_foreign"; // exclude foreign codes
+			ON i.category_id=c.category_id 
+            WHERE i.stock_id=s.stock_id
+            AND mb_flag != 'F'
+            AND !i.is_foreign"; // exclude foreign codes
 
 	if ($type == 'kits') { // sales kits
 		$sql .=	" AND i.item_code!=i.stock_id";
 	}
 	$sql .= " AND !i.inactive AND !s.inactive AND !s.no_sale";
+
+    if ($sales_type != null) {
+        $sql .= " AND p.sales_type_id = " . db_escape($sales_type);
+    }
+
 	$sql .= " GROUP BY i.item_code";
 
     $sort_opts = array(
@@ -984,7 +1001,7 @@ function sales_items_list($name, $selected_id=null, $all_option=false,
 		  ), $sort_opts, $opts), $type == 'kits' ? $type : "stock_sales" );
 }
 
-function sales_items_list_cells($label, $name, $selected_id=null, $all_option=false, $submit_on_change=false, $editkey=false)
+function sales_items_list_cells($label, $name, $selected_id=null, $all_option=false, $submit_on_change=false, $editkey=false, $sales_type=null)
 {
 	if ($editkey)
 		set_editor('item', $name, $editkey);
@@ -992,7 +1009,7 @@ function sales_items_list_cells($label, $name, $selected_id=null, $all_option=fa
 	if ($label != null)
 		echo "<td>$label</td>\n";
 	echo sales_items_list($name, $selected_id, $all_option, $submit_on_change,
-		'', array('cells'=>true));
+		'', array('cells'=>true, 'max'=>50), $sales_type);
 }
 
 function sales_kits_list($name, $selected_id=null, $all_option=false, $submit_on_change=false)
@@ -1200,11 +1217,12 @@ function stock_depreciable_fa_list_cells($label, $name, $selected_id=null,
     	( SELECT stock_id FROM ".TB_PREF."stock_moves WHERE (type=".ST_CUSTDELIVERY." OR type=".ST_INVADJUST.") AND qty!=0 )";
 
 	$year = get_current_fiscalyear();
-	$y = date('Y', strtotime($year['end']));
+	$begin = date2sql(add_months(sql2date($year['begin']), -1));
+	$end = date2sql(add_months(sql2date($year['end']), -1));
 
 	// check if current fiscal year
-	$where_opts[] = "depreciation_date < '".$y."-12-01'";
-	$where_opts[] = "depreciation_date >= '".($y-1)."-12-01'";
+	$where_opts[] = "depreciation_date <= '".$end."'";
+	$where_opts[] = "depreciation_date >= '".$begin."'";
 
 	$where_opts[] = "material_cost > 0";
 	$where_opts[] = "mb_flag='F'";
@@ -1314,9 +1332,16 @@ function item_tax_types_list_row($label, $name, $selected_id=null, $show_inactiv
 }
 
 //------------------------------------------------------------------------------------
+include_once($path_to_root . "/admin/db/shipping_db.inc");
 
 function shippers_list($name, $selected_id=null)
 {
+    if ($selected_id==null) {
+        $result = get_shippers(false);
+        $row = db_fetch($result);
+        if ($row)
+            $selected_id=$row['shipper_id'];
+    }
 	$sql = "SELECT shipper_id, shipper_name, inactive FROM ".TB_PREF."shippers";
 	return combo_input($name, $selected_id, $sql, 'shipper_id', 'shipper_name', 
 		array('order'=>array('shipper_name')));
@@ -1569,6 +1594,7 @@ function bank_reconciliation_list($account, $name, $selected_id=null, $submit_on
 		GROUP BY reconciled";
 	return combo_input($name, $selected_id, $sql, 'id', 'reconciled',
 		array(
+			'order' => 'reconciled DESC',
 			'spec_option' => $special_option,
 			'format' => '_format_date',
 			'spec_id' => '',
@@ -2017,11 +2043,14 @@ function bank_account_types_list_row($label, $name, $selected_id=null)
 }
 
 //------------------------------------------------------------------------------------------------
-function payment_person_types_list($name, $selected_id=null, $submit_on_change=false)
+function payment_person_types_list($name, $selected_id=null, $submit_on_change=false, $all=false)
 {
 	global $payment_person_types;
 
 	$items = array();
+    if ($all)
+        $items[''] = _("All");
+
 	foreach ($payment_person_types as $key=>$type)
 	{
 		if ($key != PT_WORKORDER)
@@ -2032,19 +2061,19 @@ function payment_person_types_list($name, $selected_id=null, $submit_on_change=f
 		array( 'select_submit'=> $submit_on_change ) );
 }
 
-function payment_person_types_list_cells($label, $name, $selected_id=null, $related=null)
+function payment_person_types_list_cells($label, $name, $selected_id=null, $related=null, $all=false)
 {
 	if ($label != null)
 		echo "<td>$label</td>\n";
 	echo "<td>";
-	echo payment_person_types_list($name, $selected_id, $related);
+	echo payment_person_types_list($name, $selected_id, $related, $all);
 	echo "</td>\n";
 }
 
-function payment_person_types_list_row($label, $name, $selected_id=null, $related=null)
+function payment_person_types_list_row($label, $name, $selected_id=null, $related=null, $all=false)
 {
 	echo "<tr><td class='label'>$label</td>";
-	payment_person_types_list_cells(null, $name, $selected_id, $related);
+	payment_person_types_list_cells(null, $name, $selected_id, $related, $all);
 	echo "</tr>\n";
 }
 
@@ -2186,6 +2215,31 @@ function journal_types_list_cells($label, $name, $value=null, $submit_on_change=
 	echo array_selector($name, $value, $items, 
 		array( 
 			'spec_option'=> _("All"),
+			'spec_id' => -1,
+			'select_submit'=> $submit_on_change,
+			'async' => false
+			)
+	);
+	echo "</td>\n";
+}
+
+function bank_types_list_cells($label, $name, $value=null, $submit_on_change=false)
+{
+	global $systypes_array;
+
+	if ($label != null)
+		echo "<td>$label</td>\n";
+	echo "<td>";
+
+	$items = $systypes_array;
+
+    foreach ($items as $type => $item)
+        if (!in_array($type, array(ST_JOURNAL, ST_BANKPAYMENT, ST_BANKDEPOSIT, ST_BANKTRANSFER)))
+			unset($items[$type]);
+
+	echo array_selector($name, $value, $items, 
+		array( 
+			'spec_option'=> _("-- Add New Transaction --"),
 			'spec_id' => -1,
 			'select_submit'=> $submit_on_change,
 			'async' => false
@@ -2761,7 +2815,7 @@ function accounts_type_list_row($label, $name, $selected_id=null)
 function users_list_cells($label, $name, $selected_id=null, $submit_on_change=false, $spec_opt=true)
 {
     $where = false;
-    $sql = " SELECT user_id, real_name FROM ".TB_PREF."users";
+	$sql = " SELECT user_id, IF(real_name = '', user_id, real_name) FROM ".TB_PREF."users";
 
     if ($label != null)
         echo "<td>$label</td>\n";
