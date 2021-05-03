@@ -484,7 +484,7 @@ class db_pager {
 function &new_db_pager($name, $sql, $coldef, $table = null, $key = null, $page_len = 0)  {
 
     if (isset($_SESSION[$name]) &&
-		 ($_SERVER['REQUEST_METHOD'] == 'GET' || $_SESSION[$name]->sql != $sql)) {
+		 $_SESSION[$name]->sql != $sql) {
 		unset($_SESSION[$name]); // kill pager if sql has changed
 	}
 	if (!isset($_SESSION[$name])) {

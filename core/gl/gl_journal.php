@@ -581,8 +581,18 @@ tabbed_content_start('tabs', array(
 			break;
 	};
     hidden('bank_account', @$_GET['bank_account']);
+
+// Remove the Process button while journal items are edited;
+// Otherwise, if the user neglects to confirm, the work is lost unexpectantly.
+
+div_start("submit");
+global $Ajax;
+$Ajax->activate("submit");
+if (find_submit('Edit') == -1)
 	submit_center('Process', _("Process Journal Entry"), true , 
 		_('Process journal entry only if debits equal to credits'), 'default');
+div_end();
+
 br();
 tabbed_content_end();
 

@@ -151,7 +151,7 @@ function add_supp_invoice(&$supp_trans)
     $taxes = $supp_trans->get_taxes($supp_trans->tax_group_id);
 	if ($trans_no) {
 		$allocs = get_payments_for($trans_no, $trans_type, $supp_trans->supplier_id); // save allocations
-		void_transaction($trans_type, $trans_no, Today(), _("Document reentered."));
+		void_transaction($trans_type, $trans_no, $supp_trans->tran_date, _("Document reentered."));
 		$Refs->restore_last($trans_type, $trans_no);
 	} else
 		$allocs = get_po_prepayments($supp_trans);
@@ -628,11 +628,11 @@ function void_supp_invoice($type, $type_no)
 						//Reverse the inventory effect if $qoh <=0
 						add_gl_trans_std_cost(ST_JOURNAL, $id, $old_date, 
 							$stock_gl_code["inventory_account"],
-							$dim, $dim2, $memo, $details_row["quantity"] * $diff);
+							$details_row['dimension_id'], $details_row['dimension2_id'], $memo, $details_row["quantity"] * $diff);
 						//GL Posting to inventory adjustment account
 						add_gl_trans_std_cost(ST_JOURNAL, $id, $old_date, 
 							$stock_gl_code["adjustment_account"],
-							$dim, $dim2, $memo, -$details_row["quantity"] * $diff);
+							$details_row['dimension_id'], $details_row['dimension2_id'], $memo, -$details_row["quantity"] * $diff);
 						
 						add_audit_trail(ST_JOURNAL, $id, $old_date);
 						add_comments(ST_JOURNAL, $id, $old_date, $memo);

@@ -59,6 +59,10 @@ if ($Mode=='ADD_ITEM' || $Mode=='UPDATE_ITEM')
 		}
     	if ($selected_id != -1) 
     	{
+            if (empty($_POST['no_sale']))
+                $_POST['no_sale']=0;
+            if (empty($_POST['no_purchase']))
+                $_POST['no_purchase']=0;
 	   		update_tax_group($selected_id, $_POST['name'], $_POST['no_sale'], $_POST['no_purchase'], $taxes, $tax_shippings);
 			display_notification(_('Selected tax group has been updated'));
     	} 

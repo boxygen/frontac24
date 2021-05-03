@@ -20,6 +20,7 @@ function defaultCompany()
 	document.forms[0].company_login_name.options[".user_company()."].selected = true;
 }
 </script>";
+
 	add_js_file('login.js');
 	// Display demo user name and password within login form if allow_demo_mode option is true
 	if ($SysPrefs->allow_demo_mode == true)
@@ -36,13 +37,16 @@ function defaultCompany()
 
 	if (check_faillog())
 	{
-		$blocked_msg = '<span class="redfg">'._('Too many failed login attempts.<br>Please wait a while or try later.').'</span>';
+		$blocked = true;
 
 	    $js .= "<script>setTimeout(function() {
 	    	document.getElementsByName('SubmitUser')[0].disabled=0;
 	    	document.getElementById('log_msg').innerHTML='$demo_text'}, 1000*".$SysPrefs->login_delay.");</script>";
-	    $demo_text = $blocked_msg;
+	    $demo_text = '<span class="redfg">'._('Too many failed login attempts.<br>Please wait a while or try later.').'</span>';
+	} elseif ($_SESSION["wa_current_user"]->login_attempt > 1) {
+		$demo_text = '<span class="redfg">'._("Invalid password or username. Please, try again.").'</span>';
 	}
+
 	flush_dir(user_js_cache());
 	if (!isset($def_coy))
 		$def_coy = 0;
@@ -67,6 +71,7 @@ function defaultCompany()
 	{
 		echo $js;
 	}
+
 	echo "</head>\n";
 
 	echo "<body id='loginscreen' $onload>\n";
@@ -86,9 +91,9 @@ function defaultCompany()
 	} 
 	echo "</td>\n";
 	end_row();
-
 	if (!$login_timeout)
 		table_section_title(_("Version")." $version   Build ".$SysPrefs->build_version." - "._("Login"));
+
 	$value = $login_timeout ? $_SESSION['wa_current_user']->loginname : ($SysPrefs->allow_demo_mode ? "demouser":"");
 
 	text_row(_("User name"), "user_name_entry_field", $value, 20, 30);
@@ -112,14 +117,14 @@ function defaultCompany()
 		} else {
 			text_row(_("Company"), "company_login_nickname", "", 20, 50);
 		}
-		start_row();
-		label_cell($demo_text, "colspan=2 align='center' id='log_msg'");
-		end_row();
 	}; 
+	start_row();
+	label_cell($demo_text, "colspan=2 align='center' id='log_msg'");
+	end_row();
 	end_table(1);
 	echo "<input type='hidden' id=ui_mode name='ui_mode' value='".!fallback_mode()."' >\n";
 	echo "<center><input type='submit' value='&nbsp;&nbsp;"._("Login -->")."&nbsp;&nbsp;' name='SubmitUser'"
-		." onclick='set_fullmode();'".(isset($blocked_msg) ? " disabled" : '')." ></center>\n";
+		." onclick='".(in_ajax() ? 'retry();': 'set_fullmode();')."'".(isset($blocked) ? " disabled" : '')." ></center>\n";
 
 	foreach($_SESSION['timeout']['post'] as $p => $val) {
 		// add all request variables to be resend together with login data
@@ -132,7 +137,7 @@ function defaultCompany()
 					echo "<input type='hidden' name='{$p}[$i]' value='$v'>";
 	}
 	end_form(1);
-	$Ajax->addScript(true, "document.forms[0].password.focus();");
+	$Ajax->addScript(true, "if (document.forms.length) document.forms[0].password.focus();");
 
     echo "<script language='JavaScript' type='text/javascript'>
     //<![CDATA[

@@ -31,7 +31,7 @@ function output_html($text)
 //
 function strip_quotes($data)
 {
-	if(get_magic_quotes_gpc()) {
+	if(version_compare(phpversion(), '5.4', '<') && get_magic_quotes_gpc()) {
 		if(is_array($data)) {
 			foreach($data as $k => $v) {
 				$data[$k] = strip_quotes($data[$k]);
@@ -130,7 +130,7 @@ $Ajax = new Ajax();
 get_text_init();
 
 $i_lang = isset($_POST['inst_lang']) ? $_POST['inst_lang'] : 
- 	(isset($_SESSION['inst_set']['inst_lang']) ? $_SESSION['inst_set']['inst_lang'] : array('C'));
+ 	(isset($_SESSION['inst_set']['inst_lang']) ? $_SESSION['inst_set']['inst_lang'] : 'C');
 
 // Page Initialisation
 if (!isset($_SESSION['language']) || !method_exists($_SESSION['language'], 'set_language')

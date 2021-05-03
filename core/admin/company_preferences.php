@@ -19,6 +19,7 @@ include_once($path_to_root . "/includes/date_functions.inc");
 include_once($path_to_root . "/includes/ui.inc");
 
 include_once($path_to_root . "/admin/db/company_db.inc");
+include_once($path_to_root . "/reporting/includes/tcpdf.php");
 //-------------------------------------------------------------------------------------------------
 
 if (isset($_POST['update']) && $_POST['update'] != "")
@@ -52,6 +53,12 @@ if (isset($_POST['update']) && $_POST['update'] != "")
 	{
 		display_error(_("Round Calculated field must be a positive number."));
 		set_focus('round_to');
+		$input_error = 1;
+	}
+	if (!check_num('max_days_in_docs', 1))
+	{
+		display_error(_("Max day range in Documents must be a positive number."));
+		set_focus('max_days_in_docs');
 		$input_error = 1;
 	}
 	if ($_POST['add_pct'] != "" && !is_numeric($_POST['add_pct']))
@@ -104,12 +111,20 @@ if (isset($_POST['update']) && $_POST['update'] != "")
 			}
 		}
 
-		if ($input_error != 1)
-		{
+		if ($input_error != 1) {
 			$result  =  move_uploaded_file($_FILES['pic']['tmp_name'], $filename);
 			$_POST['coy_logo'] = clean_file_name($_FILES['pic']['name']);
-			if(!$result) 
+			if(!$result) {
 				display_error(_('Error uploading logo file'));
+				$input_error = 1;
+			} else {
+				$msg = check_image_file($filename);
+				if ( $msg) {
+					display_error( $msg);
+					unlink($filename);
+					$input_error = 1;
+				}
+			}
 		}
 	}
 	if (check_value('del_coy_logo'))
@@ -137,7 +152,7 @@ if (isset($_POST['update']) && $_POST['update'] != "")
 				'postal_address','phone', 'fax', 'email', 'coy_logo', 'domicile',
 				'use_dimension', 'curr_default', 'f_year', 'shortname_name_in_list',
 				'no_item_list' => 0, 'no_customer_list' => 0, 'no_supplier_list' => 0, 
-				'base_sales', 'ref_no_auto_increase' => 0, 'dim_on_recurrent_invoice' => 0, 'long_description_invoice' => 0,
+				'base_sales', 'ref_no_auto_increase' => 0, 'dim_on_recurrent_invoice' => 0, 'long_description_invoice' => 0, 'max_days_in_docs' => 180,
 				'time_zone' => 0, 'company_logo_report' => 0, 'barcodes_on_stock' => 0, 'print_dialog_direct' => 0, 
 				'add_pct', 'round_to', 'login_tout', 'auto_curr_reval', 'bcc_email', 'alternative_tax_include_on_docs', 
 				'suppress_tax_rates', 'tax_bank_payments', 'use_manufacturing', 'use_fixed_assets'))
@@ -179,6 +194,12 @@ $_POST['no_supplier_list']  = $myrow["no_supplier_list"];
 $_POST['curr_default']  = $myrow["curr_default"];
 $_POST['f_year']  = $myrow["f_year"];
 $_POST['time_zone']  = $myrow["time_zone"];
+if (!isset($myrow["max_days_in_docs"]))
+{
+	set_company_pref("max_days_in_docs", "setup.company", "smallint", 5, '180');
+	$myrow["max_days_in_docs"] = get_company_pref("max_days_in_docs");
+}
+$_POST['max_days_in_docs']  = $myrow["max_days_in_docs"];
 if (!isset($myrow["company_logo_report"]))
 {
 	set_company_pref("company_logo_report", "setup.company", "tinyint", 1, '0');
@@ -295,6 +316,7 @@ check_row(_("Search Item List"), 'no_item_list', null);
 check_row(_("Search Customer List"), 'no_customer_list', null);
 check_row(_("Search Supplier List"), 'no_supplier_list', null);
 text_row_ex(_("Login Timeout:"), 'login_tout', 10, 10, '', null, null, _('seconds'));
+text_row_ex(_("Max day range in documents"), 'max_days_in_docs', 10, 10, '', null, null, _('days.'));
 
 end_outer_table(1);
 
