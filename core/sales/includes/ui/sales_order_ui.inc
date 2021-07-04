@@ -498,7 +498,7 @@ function display_order_header(&$order, $editable, $date_text)
 
 function sales_order_item_controls(&$order, &$rowcounter, $line_no=-1)
 {
-    global $Ajax;
+    global $Ajax, $SysPrefs;
 
 	alt_table_row_color($rowcounter);
 
@@ -530,7 +530,7 @@ function sales_order_item_controls(&$order, &$rowcounter, $line_no=-1)
             if (!isset($_POST['stock_id'])) {   // Check if stock_id dosesn't exist
 				$_POST['stock_id'] = last_sales_order_detail($order, 'stk_code');  //get the llast sales stock id.
 			}
-            sales_items_list_cells(null,'stock_id', $_POST['stock_id'], false, true, true, $order->sales_type);
+            sales_items_list_cells(null,'stock_id', $_POST['stock_id'], false, true, true, $SysPrefs->require_prices ? $order->sales_type : null);
         }
         if (list_updated('stock_id')) {            
             $Ajax->activate('price');

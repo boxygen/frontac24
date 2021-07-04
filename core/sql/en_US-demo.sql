@@ -523,7 +523,7 @@ DROP TABLE IF EXISTS `0_cust_allocations`;
 CREATE TABLE `0_cust_allocations` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `person_id` int(11) DEFAULT NULL,
-  `amt` double unsigned DEFAULT NULL,
+  `amt` double DEFAULT NULL,
   `date_alloc` date NOT NULL DEFAULT '0000-00-00',
   `trans_no_from` int(11) DEFAULT NULL,
   `trans_type_from` int(11) DEFAULT NULL,

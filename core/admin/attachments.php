@@ -195,7 +195,10 @@ function trans_view($trans)
 
 function edit_link($row)
 {
-  	return button('Edit'.$row["id"], _("Edit"), _("Edit"), ICON_EDIT);
+	if (!transaction_exists($row["type_no"], $row["trans_no"]))
+        return '';
+    else
+        return button('Edit'.$row["id"], _("Edit"), _("Edit"), ICON_EDIT);
 }
 
 function view_link($row)

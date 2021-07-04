@@ -375,11 +375,11 @@ function update_bank_transfer(
     // Delete the old bank transfer
 
 	delete_comments(ST_BANKTRANSFER, $trans_no);
-	$result = void_transaction(ST_BANKTRANSFER, $trans_no, $date, _("Document reentered."));
+	$result = void_transaction(ST_BANKTRANSFER, $trans_no, $date_, _("Document reentered."));
     if ($result !== false) {
         display_error($result);
         delete_comments(ST_BANKTRANSFER, $new_trans_no);
-        void_transaction(ST_BANKTRANSFER, $new_trans_no, $date, _("Document reentered."));
+        void_transaction(ST_BANKTRANSFER, $new_trans_no, $date_, _("Document reentered."));
         void_gl_trans(ST_BANKTRANSFER, $new_trans_no, true);
         return 0;
     }

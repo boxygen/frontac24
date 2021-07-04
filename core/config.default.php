@@ -236,6 +236,11 @@ if (!isset($path_to_root) || isset($_GET['path_to_root']) || isset($_POST['path_
 	$simplified_supplier_aging = false;
 
 /*
+    Require set prices for order items
+*/
+    $require_prices = false;
+
+/*
     XML enabled fields
 */
 /*
